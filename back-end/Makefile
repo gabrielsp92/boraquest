@@ -1,7 +1,7 @@
 # Packages measured for coverage: everything except the main() wiring.
 COVER_PKGS := ./internal/...,./cmd/webapp/routes/...
 
-.PHONY: run dev db-up db-down test test-unit test-integration cover lint
+.PHONY: run dev db-up db-down seed-user seed-user-dry-run test test-unit test-integration cover lint
 
 run:
 	go run ./cmd/webapp
@@ -15,6 +15,18 @@ db-up:
 
 db-down:
 	docker compose down
+
+# Adds one user from SEED_USER_NAME, SEED_USER_EMAIL, SEED_USER_PASSWORD and SEED_USER_GUILD (plus optional
+# DATABASE_URL), read from $(ENV_FILE) when it exists, else from the environment. See .env.example.
+# An existing email is left untouched. The dry run validates and checks the DB but writes nothing.
+ENV_FILE ?= ./.env
+load_env = set -a; [ ! -f $(ENV_FILE) ] || . $(ENV_FILE); set +a
+
+seed-user:
+	@$(load_env); go run ./cmd/seeduser
+
+seed-user-dry-run:
+	@$(load_env); go run ./cmd/seeduser -dry-run
 
 # Hot reload: rebuilds and restarts on every .go change.
 # Install once with: go install github.com/air-verse/air@latest

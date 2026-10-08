@@ -6,8 +6,12 @@ import (
 	"slices"
 )
 
-// ErrNotMember is returned when a user does not belong to any guild.
-var ErrNotMember = errors.New("guild: user is not a member")
+var (
+	// ErrNotMember is returned when a user does not belong to any guild.
+	ErrNotMember = errors.New("guild: user is not a member")
+	// ErrNotFound is returned when no guild has the requested id.
+	ErrNotFound = errors.New("guild: not found")
+)
 
 // Guild is a group of users.
 type Guild struct {

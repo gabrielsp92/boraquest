@@ -17,6 +17,9 @@ var embedded embed.FS
 // Migrations holds the schema migrations shipped with the binary.
 var Migrations, _ = fs.Sub(embedded, "migrations")
 
+// DefaultURL is the local docker-compose database, used when DATABASE_URL is unset.
+const DefaultURL = "postgres://boraquest:boraquest@localhost:5432/boraquest?sslmode=disable"
+
 // Open connects to the database at url and checks it is reachable.
 func Open(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(ctx, url)
