@@ -46,9 +46,24 @@ Follow the `add-feature` skill checklist: domain → interfaces → app service 
 ### Commands (from `back-end/`)
 
 ```
+make db-up             # start local PostgreSQL (docker-compose.yml) — run/dev need it
+make db-down           # stop it (data volume is kept)
 make run               # start API on :8080 (PORT env overrides)
 make dev               # start API with hot reload (Air, config in .air.toml)
 make test              # unit + integration
-make cover             # all tests + enforce 100% coverage
+make cover             # all tests + enforce 100% coverage (integration tests start their own Postgres via testcontainers — Docker must be running)
 make lint              # go vet + gofmt check
 ```
+
+### Runtime config, auth and data
+
+- Env: `DATABASE_URL` (defaults to the docker-compose DB), `JWT_SECRET` (required; the Makefile sets a dev-only default), `PORT`.
+- Migrations live in `internal/src/infrastructure/postgres/migrations/` (goose, embedded) and run on startup.
+- Dev users `lia`, `beto`, `nena`, `caio` (`<id>@boraquest.dev`) are seeded by `0003_seed_dev_users.sql`; the dev password is in that file's header comment.
+- Auth: `POST /api/v1/auth/login` returns an HS256 JWT (`sub` = user id). Protected routes use `middleware.RequireAuth`; read the caller with `middleware.UserID(c)`.
+- Guilds are hardcoded in `internal/src/infrastructure/guild` for v1 (one guild with the four dev users). Everything guild-scoped resolves the caller's guild via `GuildRepository.FindByMember`.
+
+## Front-end ↔ back-end
+
+- `next.config.ts` rewrites `/api/v1/*` to `BACKEND_URL` (default `http://localhost:8080`), so the browser stays same-origin.
+- `lib/api.ts` is the API client; `lib/auth.ts` holds the session (localStorage). `components/AuthGate.tsx` guards the `(tabs)` routes and sends signed-out users to `/entrar`.

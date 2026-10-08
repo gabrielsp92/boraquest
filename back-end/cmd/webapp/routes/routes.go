@@ -7,9 +7,13 @@ import (
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/interface/http/controllers"
 )
 
-// Controllers groups every controller the router needs.
+// Controllers groups every controller and middleware the router needs.
 type Controllers struct {
 	Health *controllers.HealthController
+	Auth   *controllers.AuthController
+	Rules  *controllers.RuleController
+	// RequireAuth guards every route that needs a signed-in user.
+	RequireAuth gin.HandlerFunc
 }
 
 // NewRouter builds the Gin engine with all routes registered.
@@ -19,6 +23,14 @@ func NewRouter(c Controllers) *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	v1.GET("/health", c.Health.Get)
+	v1.POST("/auth/login", c.Auth.Login)
+
+	rules := v1.Group("/rules", c.RequireAuth)
+	rules.GET("", c.Rules.List)
+	rules.POST("", c.Rules.Create)
+	rules.GET("/:id", c.Rules.Get)
+	rules.PUT("/:id", c.Rules.Update)
+	rules.DELETE("/:id", c.Rules.Delete)
 
 	return r
 }
