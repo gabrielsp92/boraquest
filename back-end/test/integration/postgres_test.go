@@ -76,6 +76,9 @@ func TestRepositoriesSurfaceDatabaseErrors(t *testing.T) {
 	_, err = postgres.NewUserRepository(closed).FindByEmail(ctx, "lia@boraquest.dev")
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, user.ErrNotFound)
+	err = postgres.NewUserRepository(closed).Create(ctx, user.User{ID: "x", Email: "x@boraquest.dev"})
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, user.ErrAlreadyExists)
 }
 
 func TestCreateWithLimitStatementErrors(t *testing.T) {
@@ -106,4 +109,27 @@ func TestUserRepositoryFindByEmail(t *testing.T) {
 
 	_, err = users.FindByEmail(context.Background(), "ghost@boraquest.dev")
 	assert.ErrorIs(t, err, user.ErrNotFound)
+}
+
+func TestUserRepositoryCreate(t *testing.T) {
+	ctx := context.Background()
+	users := postgres.NewUserRepository(pool)
+	ana := user.User{ID: "ana-create", Name: "Ana", Email: "ana-create@boraquest.dev", PasswordHash: "hash"}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM users WHERE id LIKE 'ana-create%'`) })
+
+	require.NoError(t, users.Create(ctx, ana))
+	got, err := users.FindByEmail(ctx, ana.Email)
+	require.NoError(t, err)
+	assert.Equal(t, ana, got)
+
+	dup := ana
+	dup.ID = "ana-create-2"
+	assert.ErrorIs(t, users.Create(ctx, dup), user.ErrAlreadyExists)
+
+	// A duplicate id is a different constraint: not reported as a taken email.
+	sameID := ana
+	sameID.Email = "other@boraquest.dev"
+	err = users.Create(ctx, sameID)
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, user.ErrAlreadyExists)
 }

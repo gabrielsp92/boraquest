@@ -26,7 +26,7 @@ const tokenTTL = 24 * time.Hour
 func main() {
 	ctx := context.Background()
 
-	databaseURL := getenv("DATABASE_URL", "postgres://boraquest:boraquest@localhost:5432/boraquest?sslmode=disable")
+	databaseURL := getenv("DATABASE_URL", postgres.DefaultURL)
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET must be set")

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/user"
 )
@@ -44,7 +43,7 @@ func NewAuthService(users UserRepository, passwords PasswordComparer, tokens Tok
 // Login checks the credentials and returns an access token for the user.
 // Unknown emails and wrong passwords both yield user.ErrInvalidCredentials.
 func (s *AuthService) Login(ctx context.Context, email, password string) (string, user.User, error) {
-	u, err := s.users.FindByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
+	u, err := s.users.FindByEmail(ctx, user.NormalizeEmail(email))
 	if errors.Is(err, user.ErrNotFound) {
 		_ = s.passwords.Compare(dummyHash, password)
 		return "", user.User{}, user.ErrInvalidCredentials

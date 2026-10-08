@@ -48,6 +48,8 @@ Follow the `add-feature` skill checklist: domain → interfaces → app service 
 ```
 make db-up             # start local PostgreSQL (docker-compose.yml) — run/dev need it
 make db-down           # stop it (data volume is kept)
+make seed-user         # add one user from SEED_USER_* vars in back-end/.env (see .env.example); existing email = no-op
+make seed-user-dry-run # same, but only validates and checks the DB — writes nothing
 make run               # start API on :8080 (PORT env overrides)
 make dev               # start API with hot reload (Air, config in .air.toml)
 make test              # unit + integration
