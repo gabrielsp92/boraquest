@@ -1,0 +1,1 @@
+Six member avatars: `lia`, `beto`, `nena`, `caio`, `duda`, `tom`. Each is a 64×64 SVG: a colored disc (one of the `avatar-*` tokens) with face marks in `ink`. Show them through `<img>` inside `.bq-avatar`, or inline the SVG. One avatar per guild member, never two members with the same disc color. They are full-color files, so they do not take a text color.
