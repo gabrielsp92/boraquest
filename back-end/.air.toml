@@ -1,0 +1,19 @@
+# Hot-reload config for `make dev` (https://github.com/air-verse/air).
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/webapp ./cmd/webapp"
+  entrypoint = ["./tmp/webapp"]
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "test", "api", "scripts"]
+  exclude_regex = ["_test\\.go$"]
+  delay = 300
+  stop_on_error = true
+  send_interrupt = true
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true
