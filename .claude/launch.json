@@ -10,7 +10,7 @@
     {
       "name": "back-end",
       "runtimeExecutable": "/bin/sh",
-      "runtimeArgs": ["-c", "cd back-end && exec $HOME/go/bin/air"],
+      "runtimeArgs": ["-c", "cd back-end && docker compose up -d --wait postgres && JWT_SECRET=${JWT_SECRET:-boraquest-dev-secret} exec $HOME/go/bin/air"],
       "port": 8080
     }
   ]

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Boraquest API
-  version: 0.1.0
+  version: 0.2.0
 servers:
   - url: http://localhost:8080/api/v1
 paths:
@@ -17,12 +17,157 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
         "503":
-          description: Service is unavailable
+          $ref: "#/components/responses/Error"
+  /auth/login:
+    post:
+      summary: Sign in with email and password
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Signed in; use `token` as a Bearer token (valid for 24 hours)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+  /rules:
+    get:
+      summary: List the rules of the caller's guild, oldest first
+      operationId: listRules
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The guild's rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleList"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      summary: Create a rule in the caller's guild
+      description: A guild can hold at most 40 rules at the same time.
+      operationId: createRule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuleRequest"
+      responses:
+        "201":
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: The guild already holds 40 rules
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /rules/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get one rule of the caller's guild
+      operationId: getRule
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    put:
+      summary: Replace the editable fields of a rule
+      description: Any member of the rule's guild may update it. `id` and `createdBy` never change.
+      operationId: updateRule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuleRequest"
+      responses:
+        "200":
+          description: Rule updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      summary: Delete a rule of the caller's guild
+      operationId: deleteRule
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Rule deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Error:
+      description: >-
+        Error. 400 invalid body or field, 401 missing/invalid token or bad credentials,
+        403 caller belongs to no guild, 404 rule not found in the caller's guild.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
   schemas:
     HealthResponse:
       type: object
@@ -36,6 +181,83 @@ components:
         checkedAt:
           type: string
           format: date-time
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    LoginResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+    User:
+      type: object
+      required: [id, name, email]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+    RuleRequest:
+      type: object
+      required: [name, frequency, scoreType, score]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: Trimmed before validation
+        frequency:
+          type: string
+          enum: [daily, weekly]
+        scoreType:
+          type: string
+          enum: [sum, decrease]
+          description: "`sum` adds `score` points, `decrease` removes them"
+        score:
+          type: integer
+          minimum: 1
+          maximum: 100
+    Rule:
+      allOf:
+        - $ref: "#/components/schemas/RuleRequest"
+        - type: object
+          required: [id, createdBy, createdAt, updatedAt]
+          properties:
+            id:
+              type: string
+            createdBy:
+              type: string
+              description: Id of the user who created the rule
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    RuleList:
+      type: object
+      required: [rules, limit]
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/Rule"
+        limit:
+          type: integer
+          description: Maximum number of rules a guild can hold
+          example: 40
     Error:
       type: object
       required: [error]
