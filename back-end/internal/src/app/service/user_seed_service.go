@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
+	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/guild"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/user"
 )
 
@@ -11,8 +13,16 @@ import (
 type UserSeedRepository interface {
 	// FindByEmail returns user.ErrNotFound when no user has that email.
 	FindByEmail(ctx context.Context, email string) (user.User, error)
-	// Create returns user.ErrAlreadyExists when the email is already taken.
-	Create(ctx context.Context, u user.User) error
+	// Create stores u as a member of guildID, atomically. It returns
+	// user.ErrAlreadyExists when the email is taken and guild.ErrNotFound when
+	// the guild does not exist.
+	Create(ctx context.Context, u user.User, guildID string) error
+}
+
+// GuildFinder looks up guilds by id.
+type GuildFinder interface {
+	// Get returns guild.ErrNotFound when no guild has that id.
+	Get(ctx context.Context, id string) (guild.Guild, error)
 }
 
 // PasswordHasher turns a plain password into a storable hash.
@@ -29,41 +39,50 @@ const (
 	SeedAlreadyExists SeedOutcome = "already-exists"
 )
 
-// SeedUserInput describes the user to seed. DryRun validates and checks the
-// database without writing anything.
+// SeedUserInput describes the user to seed and the guild (by id) it joins.
+// DryRun validates and checks the database without writing anything.
 type SeedUserInput struct {
 	Name     string
 	Email    string
 	Password string
+	GuildID  string
 	DryRun   bool
 }
 
-// SeedUserResult is the seeded user (never with a password hash in a dry run)
-// and what happened to it.
+// SeedUserResult is the seeded user (never with a password hash in a dry run),
+// the guild it joins and what happened to it. Guild is left empty when the
+// user already existed.
 type SeedUserResult struct {
 	User    user.User
+	Guild   guild.Guild
 	Outcome SeedOutcome
 }
 
 // UserSeedService adds users outside the sign-up flow, e.g. from a script.
 type UserSeedService struct {
 	users     UserSeedRepository
+	guilds    GuildFinder
 	passwords PasswordHasher
 	ids       IDGenerator
 }
 
 // NewUserSeedService builds a UserSeedService.
-func NewUserSeedService(users UserSeedRepository, passwords PasswordHasher, ids IDGenerator) *UserSeedService {
-	return &UserSeedService{users: users, passwords: passwords, ids: ids}
+func NewUserSeedService(users UserSeedRepository, guilds GuildFinder, passwords PasswordHasher, ids IDGenerator) *UserSeedService {
+	return &UserSeedService{users: users, guilds: guilds, passwords: passwords, ids: ids}
 }
 
-// Seed creates the user unless one with the same email exists, in which case
-// the existing user is returned untouched (its password is not changed).
+// Seed creates the user as a member of the input guild, which must exist.
+// When a user with the same email already exists it is returned untouched
+// (neither its password nor its guild changes).
 func (s *UserSeedService) Seed(ctx context.Context, in SeedUserInput) (SeedUserResult, error) {
 	if err := user.ValidatePassword(in.Password); err != nil {
 		return SeedUserResult{}, err
 	}
 	u, err := user.New(s.ids.NewID(), in.Name, in.Email, "")
+	if err != nil {
+		return SeedUserResult{}, err
+	}
+	g, err := s.guilds.Get(ctx, strings.TrimSpace(in.GuildID))
 	if err != nil {
 		return SeedUserResult{}, err
 	}
@@ -75,13 +94,13 @@ func (s *UserSeedService) Seed(ctx context.Context, in SeedUserInput) (SeedUserR
 		return SeedUserResult{}, err
 	}
 	if in.DryRun {
-		return SeedUserResult{User: u, Outcome: SeedWouldCreate}, nil
+		return SeedUserResult{User: u, Guild: g, Outcome: SeedWouldCreate}, nil
 	}
 	if u.PasswordHash, err = s.passwords.Hash(in.Password); err != nil {
 		return SeedUserResult{}, err
 	}
-	if err := s.users.Create(ctx, u); err != nil {
+	if err := s.users.Create(ctx, u, g.ID); err != nil {
 		return SeedUserResult{}, err
 	}
-	return SeedUserResult{User: u, Outcome: SeedCreated}, nil
+	return SeedUserResult{User: u, Guild: g, Outcome: SeedCreated}, nil
 }

@@ -1,12 +1,13 @@
 // Command seeduser adds one user to the database from environment variables:
 //
 //	SEED_USER_NAME, SEED_USER_EMAIL, SEED_USER_PASSWORD  (required)
+//	SEED_USER_GUILD                                      (required: id of an existing guild to join, e.g. familia)
 //	DATABASE_URL                                         (defaults to the docker-compose DB)
 //
 // With -dry-run it validates the input and checks the database, but writes
 // nothing (not even migrations). A user whose email already exists is left
-// untouched. Run it through `make seed-user` / `make seed-user-dry-run`, which
-// load back-end/.env first.
+// untouched, guild included. Run it through `make seed-user` /
+// `make seed-user-dry-run`, which load back-end/.env first.
 package main
 
 import (
@@ -33,6 +34,7 @@ func main() {
 		Name:     requireEnv("SEED_USER_NAME"),
 		Email:    requireEnv("SEED_USER_EMAIL"),
 		Password: requireEnv("SEED_USER_PASSWORD"),
+		GuildID:  requireEnv("SEED_USER_GUILD"),
 		DryRun:   *dryRun,
 	}
 	databaseURL := os.Getenv("DATABASE_URL")
@@ -53,7 +55,12 @@ func main() {
 	}
 
 	// Application
-	seeder := service.NewUserSeedService(postgres.NewUserRepository(pool), security.BcryptHasher{}, idgen.UUIDGenerator{})
+	seeder := service.NewUserSeedService(
+		postgres.NewUserRepository(pool),
+		postgres.NewGuildRepository(pool),
+		security.BcryptHasher{},
+		idgen.UUIDGenerator{},
+	)
 	res, err := seeder.Seed(ctx, in)
 	if err != nil {
 		log.Fatalf("seed user: %v", err)
@@ -63,12 +70,12 @@ func main() {
 	if in.DryRun {
 		prefix = "[dry run] "
 	}
-	u := res.User
+	u, g := res.User, res.Guild
 	switch res.Outcome {
 	case service.SeedCreated:
-		fmt.Printf("%screated user %s <%s> with id %s\n", prefix, u.Name, u.Email, u.ID)
+		fmt.Printf("%screated user %s <%s> with id %s in guild %s (%s)\n", prefix, u.Name, u.Email, u.ID, g.Name, g.ID)
 	case service.SeedWouldCreate:
-		fmt.Printf("%swould create user %s <%s>; nothing was written\n", prefix, u.Name, u.Email)
+		fmt.Printf("%swould create user %s <%s> in guild %s (%s); nothing was written\n", prefix, u.Name, u.Email, g.Name, g.ID)
 	case service.SeedAlreadyExists:
 		fmt.Printf("%suser <%s> already exists with id %s; left untouched\n", prefix, u.Email, u.ID)
 	}

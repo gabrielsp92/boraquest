@@ -8,14 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/guild"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/user"
 )
 
+// PostgreSQL error codes and the constraint names (from the migrations) Create maps to domain errors.
 const (
-	// uniqueViolation is the PostgreSQL error code for a unique constraint failure.
-	uniqueViolation = "23505"
-	// usersEmailKey is the unique constraint on users.email (0001_users.sql).
-	usersEmailKey = "users_email_key"
+	uniqueViolation       = "23505"
+	foreignKeyViolation   = "23503"
+	usersEmailKey         = "users_email_key"
+	guildMembersGuildFKey = "guild_members_guild_id_fkey"
 )
 
 // UserRepository reads and writes users in the users table.
@@ -39,13 +41,28 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (user.Us
 	return u, err
 }
 
-// Create inserts u, mapping a duplicate email to user.ErrAlreadyExists.
-func (r *UserRepository) Create(ctx context.Context, u user.User) error {
-	_, err := r.pool.Exec(ctx, `INSERT INTO users (id, name, email, password_hash) VALUES ($1, $2, $3, $4)`,
-		u.ID, u.Name, u.Email, u.PasswordHash)
+// Create inserts u as a member of guildID, atomically. A taken email yields
+// user.ErrAlreadyExists and an unknown guild guild.ErrNotFound.
+func (r *UserRepository) Create(ctx context.Context, u user.User, guildID string) error {
+	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO users (id, name, email, password_hash) VALUES ($1, $2, $3, $4)`,
+			u.ID, u.Name, u.Email, u.PasswordHash)
+		if isConstraintError(err, uniqueViolation, usersEmailKey) {
+			return user.ErrAlreadyExists
+		}
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO guild_members (user_id, guild_id) VALUES ($1, $2)`, u.ID, guildID)
+		if isConstraintError(err, foreignKeyViolation, guildMembersGuildFKey) {
+			return guild.ErrNotFound
+		}
+		return err
+	})
+}
+
+// isConstraintError reports whether err is a PostgreSQL error with that code on that constraint.
+func isConstraintError(err error, code, constraint string) bool {
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation && pgErr.ConstraintName == usersEmailKey {
-		return user.ErrAlreadyExists
-	}
-	return err
+	return errors.As(err, &pgErr) && pgErr.Code == code && pgErr.ConstraintName == constraint
 }

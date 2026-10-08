@@ -16,7 +16,7 @@ db-up:
 db-down:
 	docker compose down
 
-# Adds one user from SEED_USER_NAME, SEED_USER_EMAIL and SEED_USER_PASSWORD (plus optional
+# Adds one user from SEED_USER_NAME, SEED_USER_EMAIL, SEED_USER_PASSWORD and SEED_USER_GUILD (plus optional
 # DATABASE_URL), read from $(ENV_FILE) when it exists, else from the environment. See .env.example.
 # An existing email is left untouched. The dry run validates and checks the DB but writes nothing.
 ENV_FILE ?= ./.env

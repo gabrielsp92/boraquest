@@ -10,7 +10,6 @@ import (
 	"github.com/gabrielsp92/boraquest/back-end/cmd/webapp/routes"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/app/service"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/clock"
-	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/guild"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/idgen"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/postgres"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/security"
@@ -49,7 +48,7 @@ func main() {
 	authService := service.NewAuthService(postgres.NewUserRepository(pool), security.BcryptComparer{}, tokens)
 	ruleService := service.NewRuleService(
 		postgres.NewRuleRepository(pool),
-		guild.NewStaticRepository(guild.Default),
+		postgres.NewGuildRepository(pool),
 		idgen.UUIDGenerator{},
 		systemClock,
 	)

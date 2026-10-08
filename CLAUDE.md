@@ -63,7 +63,7 @@ make lint              # go vet + gofmt check
 - Migrations live in `internal/src/infrastructure/postgres/migrations/` (goose, embedded) and run on startup.
 - Dev users `lia`, `beto`, `nena`, `caio` (`<id>@boraquest.dev`) are seeded by `0003_seed_dev_users.sql`; the dev password is in that file's header comment.
 - Auth: `POST /api/v1/auth/login` returns an HS256 JWT (`sub` = user id). Protected routes use `middleware.RequireAuth`; read the caller with `middleware.UserID(c)`.
-- Guilds are hardcoded in `internal/src/infrastructure/guild` for v1 (one guild with the four dev users). Everything guild-scoped resolves the caller's guild via `GuildRepository.FindByMember`.
+- Guilds live in Postgres (`guilds`, `guild_members`; migration `0004_guilds.sql` creates `familia` with the four dev users). For v1 a user belongs to at most one guild. Everything guild-scoped resolves the caller's guild via `GuildRepository.FindByMember`. New users join a guild via `make seed-user` (`SEED_USER_GUILD`).
 
 ## Front-end ↔ back-end
 
