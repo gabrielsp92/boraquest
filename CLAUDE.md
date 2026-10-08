@@ -50,6 +50,8 @@ make db-up             # start local PostgreSQL (docker-compose.yml) — run/dev
 make db-down           # stop it (data volume is kept)
 make seed-user         # add one user from SEED_USER_* vars in back-end/.env (see .env.example); existing email = no-op
 make seed-user-dry-run # same, but only validates and checks the DB — writes nothing
+make seed-rules        # add back-end/seeds/rules.json to SEED_RULES_GUILD (names already there are skipped)
+make seed-rules-dry-run
 make run               # start API on :8080 (PORT env overrides)
 make dev               # start API with hot reload (Air, config in .air.toml)
 make test              # unit + integration
@@ -64,6 +66,7 @@ make lint              # go vet + gofmt check
 - Dev users `lia`, `beto`, `nena`, `caio` (`<id>@boraquest.dev`) are seeded by `0003_seed_dev_users.sql`; the dev password is in that file's header comment.
 - Auth: `POST /api/v1/auth/login` returns an HS256 JWT (`sub` = user id). Protected routes use `middleware.RequireAuth`; read the caller with `middleware.UserID(c)`.
 - Guilds live in Postgres (`guilds`, `guild_members`; migration `0004_guilds.sql` creates `familia` with the four dev users). For v1 a user belongs to at most one guild. Everything guild-scoped resolves the caller's guild via `GuildRepository.FindByMember`. New users join a guild via `make seed-user` (`SEED_USER_GUILD`).
+- Seed data lives as JSON in `back-end/seeds/` (e.g. `rules.json`, the starter rules) and is loaded by the `cmd/seed*` commands, not by migrations.
 
 ## Front-end ↔ back-end
 

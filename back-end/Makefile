@@ -1,7 +1,7 @@
 # Packages measured for coverage: everything except the main() wiring.
 COVER_PKGS := ./internal/...,./cmd/webapp/routes/...
 
-.PHONY: run dev db-up db-down seed-user seed-user-dry-run test test-unit test-integration cover lint
+.PHONY: run dev db-up db-down seed-user seed-user-dry-run seed-rules seed-rules-dry-run test test-unit test-integration cover lint
 
 run:
 	go run ./cmd/webapp
@@ -27,6 +27,16 @@ seed-user:
 
 seed-user-dry-run:
 	@$(load_env); go run ./cmd/seeduser -dry-run
+
+# Adds the rules in seeds/rules.json (override with RULES_FILE) to SEED_RULES_GUILD, created by
+# SEED_RULES_CREATOR_EMAIL. Names the guild already has are skipped, so re-running is safe.
+RULES_FILE ?= seeds/rules.json
+
+seed-rules:
+	@$(load_env); go run ./cmd/seedrules -file $(RULES_FILE)
+
+seed-rules-dry-run:
+	@$(load_env); go run ./cmd/seedrules -dry-run -file $(RULES_FILE)
 
 # Hot reload: rebuilds and restarts on every .go change.
 # Install once with: go install github.com/air-verse/air@latest

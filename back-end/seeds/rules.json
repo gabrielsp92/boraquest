@@ -1,0 +1,12 @@
+{
+  "rules": [
+    { "name": "Beber 2 L de água", "frequency": "daily", "scoreType": "sum", "score": 10 },
+    { "name": "Caminhar 30 minutos", "frequency": "daily", "scoreType": "sum", "score": 15 },
+    { "name": "Ler 20 minutos", "frequency": "daily", "scoreType": "sum", "score": 10 },
+    { "name": "Dormir antes das 23h", "frequency": "daily", "scoreType": "sum", "score": 10 },
+    { "name": "Treinar 3 vezes", "frequency": "weekly", "scoreType": "sum", "score": 30 },
+    { "name": "Celular na mesa", "frequency": "daily", "scoreType": "decrease", "score": 5 },
+    { "name": "Pular o café da manhã", "frequency": "daily", "scoreType": "decrease", "score": 5 },
+    { "name": "Comer fast-food", "frequency": "daily", "scoreType": "decrease", "score": 10 }
+  ]
+}
