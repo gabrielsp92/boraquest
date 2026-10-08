@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "front-end",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd front-end && PATH=/opt/homebrew/opt/node@22/bin:$PATH exec npm run dev"],
+      "port": 3000
+    },
+    {
+      "name": "back-end",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd back-end && exec $HOME/go/bin/air"],
+      "port": 8080
+    }
+  ]
+}
