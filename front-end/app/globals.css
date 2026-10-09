@@ -155,6 +155,7 @@ body { margin: 0; background: var(--ground); color: var(--ink); font: 700 17px/2
   .bq-quest--loss{background:transparent;border:2px dashed var(--loss);box-shadow:none}
   .bq-quest--loss .bq-quest__mark{background:var(--loss);border-color:var(--loss);color:var(--on-loss)}
   .bq-quest--selected{border-style:solid;border-width:3px;background:var(--loss-soft)}
+  .bq-quest:disabled{opacity:.6;cursor:default}
 
   /* Badge */
   .bq-badge{display:inline-flex;align-items:center;gap:var(--space-1);padding:3px 10px;border-radius:var(--radius-pill);font:700 13px/18px var(--font-body);background:var(--surface-sunken);color:var(--ink);white-space:nowrap}

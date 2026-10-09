@@ -56,3 +56,22 @@ export const rulePoints = (r: Pick<Rule, "scoreType" | "score">) => (r.scoreType
 
 export const getPrizes = () => apiFetch<Prizes>("/prizes");
 export const setPrize = (period: PrizePeriod, text: string) => apiFetch<Prizes>(`/prizes/${period}`, "PUT", { text });
+
+export type EntryPeriod = "today" | "week";
+export type Entry = {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  scoreType: ScoreType;
+  points: number; // signed
+  memberId: string;
+  loggedBy: string;
+  occurredOn: string; // "YYYY-MM-DD"
+  createdAt: string;
+};
+export type EntryList = { entries: Entry[]; from: string; to: string; today: string }; // "YYYY-MM-DD"
+
+export const listEntries = (period: EntryPeriod) => apiFetch<EntryList>(`/entries?period=${period}`);
+export const createEntry = (ruleId: string, memberId: string) =>
+  apiFetch<Entry>("/entries", "POST", { ruleId, memberId });
+export const deleteEntry = (id: string) => apiFetch<void>(`/entries/${encodeURIComponent(id)}`, "DELETE");

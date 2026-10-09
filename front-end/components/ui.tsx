@@ -63,8 +63,9 @@ type QuestProps = {
   selected?: boolean;
   onClick?: () => void;
   pressed?: boolean;
+  disabled?: boolean;
 };
-export function QuestRow({ name, points, kind, meta, selected, onClick, pressed }: QuestProps) {
+export function QuestRow({ name, points, kind, meta, selected, onClick, pressed, disabled }: QuestProps) {
   const mark: IconName = kind === "gain" ? "plus" : kind === "loss" ? "minus" : "check";
   const className = cx("bq-quest", kind !== "todo" && `bq-quest--${kind}`, selected && "bq-quest--selected");
   const body = (
@@ -80,7 +81,7 @@ export function QuestRow({ name, points, kind, meta, selected, onClick, pressed 
     </>
   );
   return onClick ? (
-    <button type="button" className={className} onClick={onClick} aria-pressed={pressed}>
+    <button type="button" className={className} onClick={onClick} aria-pressed={pressed} disabled={disabled}>
       {body}
     </button>
   ) : (
