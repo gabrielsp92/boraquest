@@ -12,6 +12,7 @@ type Controllers struct {
 	Health *controllers.HealthController
 	Auth   *controllers.AuthController
 	Rules  *controllers.RuleController
+	Prizes *controllers.PrizeController
 	// RequireAuth guards every route that needs a signed-in user.
 	RequireAuth gin.HandlerFunc
 }
@@ -31,6 +32,11 @@ func NewRouter(c Controllers) *gin.Engine {
 	rules.GET("/:id", c.Rules.Get)
 	rules.PUT("/:id", c.Rules.Update)
 	rules.DELETE("/:id", c.Rules.Delete)
+
+	prizes := v1.Group("/prizes", c.RequireAuth)
+	prizes.GET("", c.Prizes.Get)
+	prizes.PUT("/week", c.Prizes.SetWeek)
+	prizes.PUT("/month", c.Prizes.SetMonth)
 
 	return r
 }

@@ -52,12 +52,18 @@ func main() {
 		idgen.UUIDGenerator{},
 		systemClock,
 	)
+	prizeService := service.NewPrizeService(
+		postgres.NewPrizeRepository(pool),
+		postgres.NewGuildRepository(pool),
+		systemClock,
+	)
 
 	// Interface
 	router := routes.NewRouter(routes.Controllers{
 		Health:      controllers.NewHealthController(healthService),
 		Auth:        controllers.NewAuthController(authService),
 		Rules:       controllers.NewRuleController(ruleService),
+		Prizes:      controllers.NewPrizeController(prizeService),
 		RequireAuth: middleware.RequireAuth(tokens),
 	})
 
