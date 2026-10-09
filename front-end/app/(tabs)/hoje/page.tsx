@@ -21,7 +21,7 @@ export default function HojePage() {
   const [todayIso, setTodayIso] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
 
-  const [busyRuleId, setBusyRuleId] = useState<string | null>(null);
+  const [busyRuleIds, setBusyRuleIds] = useState<Set<string>>(new Set());
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [justChecked, setJustChecked] = useState<string | null>(null);
@@ -97,9 +97,9 @@ export default function HojePage() {
   const doneCount = myQuests.filter((r) => entries.some((e) => e.ruleId === r.id && e.scoreType === "sum")).length;
 
   async function toggle(rule: Rule) {
-    if (busyRuleId === rule.id) return;
+    if (busyRuleIds.has(rule.id)) return;
     const existing = entries!.find((e) => e.ruleId === rule.id && e.scoreType === "sum");
-    setBusyRuleId(rule.id);
+    setBusyRuleIds((ids) => new Set(ids).add(rule.id));
     setRowErrors((r) => {
       if (!(rule.id in r)) return r;
       const rest = { ...r };
@@ -124,7 +124,11 @@ export default function HojePage() {
         setRowErrors((r) => ({ ...r, [rule.id]: "Não deu para salvar. Tenta de novo." }));
       }
     } finally {
-      setBusyRuleId(null);
+      setBusyRuleIds((ids) => {
+        const next = new Set(ids);
+        next.delete(rule.id);
+        return next;
+      });
     }
   }
 
@@ -203,7 +207,7 @@ export default function HojePage() {
                 meta={entry && photos[entry.id] ? "com foto" : undefined}
                 onClick={() => toggle(rule)}
                 pressed={!!entry}
-                disabled={busyRuleId === rule.id}
+                disabled={busyRuleIds.has(rule.id)}
               />
               {rowErrors[rule.id] && (
                 <p className="bq-note" role="alert">
