@@ -36,6 +36,8 @@ var (
 	databaseURL string
 	// pool is migrated and seeded before any test runs.
 	pool *pgxpool.Pool
+	// saoPaulo is the fixed timezone every entry's day/week boundary is computed in.
+	saoPaulo *time.Location
 )
 
 // TestMain starts one throwaway PostgreSQL container for the whole package.
@@ -59,6 +61,10 @@ func TestMain(m *testing.M) {
 
 func run(ctx context.Context, m *testing.M, ctr *tcpostgres.PostgresContainer) int {
 	var err error
+	saoPaulo, err = time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		log.Fatalf("load timezone: %v", err)
+	}
 	if databaseURL, err = ctr.ConnectionString(ctx, "sslmode=disable"); err != nil {
 		log.Fatalf("connection string: %v", err)
 	}
@@ -97,6 +103,14 @@ func newServer(t *testing.T) *httptest.Server {
 			postgres.NewGuildRepository(pool),
 			systemClock,
 		)),
+		Entries: controllers.NewEntryController(service.NewEntryService(
+			postgres.NewEntryRepository(pool),
+			postgres.NewRuleRepository(pool),
+			postgres.NewGuildRepository(pool),
+			idgen.UUIDGenerator{},
+			systemClock,
+			saoPaulo,
+		)),
 		RequireAuth: middleware.RequireAuth(tokens),
 	})
 	srv := httptest.NewServer(router)
@@ -115,5 +129,12 @@ func resetRules(t *testing.T) {
 func resetPrizes(t *testing.T) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `DELETE FROM prizes`)
+	require.NoError(t, err)
+}
+
+// resetEntries empties the entries table so each test starts from a clean guild.
+func resetEntries(t *testing.T) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `DELETE FROM entries`)
 	require.NoError(t, err)
 }

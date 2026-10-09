@@ -224,6 +224,88 @@ paths:
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/Error"
+  /entries:
+    get:
+      summary: List the caller's entries for a period
+      operationId: listEntries
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [today, week]
+      responses:
+        "200":
+          description: The caller's entries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntryList"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      summary: Log an entry for a guild member
+      description: >-
+        A `sum`-type rule can only be logged by the member themselves;
+        a `decrease`-type rule may be logged against any guild member.
+      operationId: createEntry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EntryRequest"
+      responses:
+        "201":
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: A sum-type entry already exists for that rule/member/period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /entries/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      summary: Remove the caller's own sum-type entry, same day only
+      operationId: deleteEntry
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Entry removed
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     bearerAuth:
@@ -350,6 +432,59 @@ components:
           type: string
           format: date-time
           description: Zero time if no prize has ever been set for this guild
+    EntryRequest:
+      type: object
+      required: [ruleId, memberId]
+      properties:
+        ruleId:
+          type: string
+        memberId:
+          type: string
+          description: Must belong to the caller's guild
+    Entry:
+      allOf:
+        - $ref: "#/components/schemas/EntryRequest"
+        - type: object
+          required: [id, ruleName, scoreType, points, loggedBy, occurredOn, createdAt]
+          properties:
+            id:
+              type: string
+            ruleName:
+              type: string
+              description: Snapshot of the rule's name at creation time
+            scoreType:
+              type: string
+              enum: [sum, decrease]
+              description: Snapshot of the rule's scoreType at creation time
+            points:
+              type: integer
+              description: Signed; positive for sum, negative for decrease
+            loggedBy:
+              type: string
+              description: Id of the user who recorded the entry
+            occurredOn:
+              type: string
+              format: date
+            createdAt:
+              type: string
+              format: date-time
+    EntryList:
+      type: object
+      required: [entries, from, to, today]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Entry"
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        today:
+          type: string
+          format: date
     Error:
       type: object
       required: [error]

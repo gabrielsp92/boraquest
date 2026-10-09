@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/gabrielsp92/boraquest/back-end/cmd/webapp/routes"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/app/service"
@@ -31,6 +32,11 @@ func main() {
 		log.Fatal("JWT_SECRET must be set")
 	}
 
+	loc, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		log.Fatalf("load timezone: %v", err)
+	}
+
 	// Infrastructure
 	systemClock := clock.SystemClock{}
 	pool, err := postgres.Open(ctx, databaseURL)
@@ -46,16 +52,26 @@ func main() {
 	// Application
 	healthService := service.NewHealthService(systemClock, version)
 	authService := service.NewAuthService(postgres.NewUserRepository(pool), security.BcryptComparer{}, tokens)
+	ruleRepository := postgres.NewRuleRepository(pool)
+	guildRepository := postgres.NewGuildRepository(pool)
 	ruleService := service.NewRuleService(
-		postgres.NewRuleRepository(pool),
-		postgres.NewGuildRepository(pool),
+		ruleRepository,
+		guildRepository,
 		idgen.UUIDGenerator{},
 		systemClock,
 	)
 	prizeService := service.NewPrizeService(
 		postgres.NewPrizeRepository(pool),
-		postgres.NewGuildRepository(pool),
+		guildRepository,
 		systemClock,
+	)
+	entryService := service.NewEntryService(
+		postgres.NewEntryRepository(pool),
+		ruleRepository,
+		guildRepository,
+		idgen.UUIDGenerator{},
+		systemClock,
+		loc,
 	)
 
 	// Interface
@@ -64,6 +80,7 @@ func main() {
 		Auth:        controllers.NewAuthController(authService),
 		Rules:       controllers.NewRuleController(ruleService),
 		Prizes:      controllers.NewPrizeController(prizeService),
+		Entries:     controllers.NewEntryController(entryService),
 		RequireAuth: middleware.RequireAuth(tokens),
 	})
 
