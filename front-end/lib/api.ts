@@ -17,6 +17,9 @@ export type Rule = {
 export type RuleInput = Pick<Rule, "name" | "frequency" | "scoreType" | "score">;
 export type RuleList = { rules: Rule[]; limit: number };
 
+export type Prizes = { week: string; month: string; updatedAt: string };
+export type PrizePeriod = "week" | "month";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -50,3 +53,6 @@ export const deleteRule = (id: string) => apiFetch<void>(`/rules/${encodeURIComp
 
 /** Signed points a rule is worth: positive for sum, negative for decrease. */
 export const rulePoints = (r: Pick<Rule, "scoreType" | "score">) => (r.scoreType === "sum" ? r.score : -r.score);
+
+export const getPrizes = () => apiFetch<Prizes>("/prizes");
+export const setPrize = (period: PrizePeriod, text: string) => apiFetch<Prizes>(`/prizes/${period}`, "PUT", { text });
