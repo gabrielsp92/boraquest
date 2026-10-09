@@ -1,12 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, EmptyState, Field, QuestRow, Segmented, Sheet, Stepper, TopBar } from "@/components/ui";
-import { ApiError, createRule, deleteRule, listRules, rulePoints, updateRule, type Rule, type RuleFrequency, type RuleList, type ScoreType } from "@/lib/api";
+import {
+  ApiError,
+  createRule,
+  deleteRule,
+  getPrizes,
+  listRules,
+  rulePoints,
+  setPrize,
+  updateRule,
+  type Prizes,
+  type Rule,
+  type RuleFrequency,
+  type RuleList,
+  type ScoreType,
+} from "@/lib/api";
 import { clearSession } from "@/lib/auth";
-import { prizes as initialPrizes } from "@/lib/data";
 
 const frequencyLabel: Record<RuleFrequency, string> = { daily: "Diária", weekly: "Semanal" };
+
+type FieldStatus = "idle" | "saving" | "saved" | "error";
 
 function errorMessage(err: unknown, limit: number) {
   if (err instanceof ApiError && err.status === 409) return `Sua guilda já tem ${limit} quests. Exclua uma para criar outra.`;
@@ -18,7 +33,16 @@ export default function RegrasPage() {
   const [rules, setRules] = useState<Rule[] | null>(null);
   const [limit, setLimit] = useState(40);
   const [loadError, setLoadError] = useState(false);
-  const [prizes, setPrizes] = useState(initialPrizes);
+
+  // Prizes: independent load/save state from the rules list above.
+  const [prizes, setPrizes] = useState<Prizes | null>(null);
+  const [prizesLoadError, setPrizesLoadError] = useState(false);
+  const [weekInput, setWeekInput] = useState("");
+  const [monthInput, setMonthInput] = useState("");
+  const [weekStatus, setWeekStatus] = useState<FieldStatus>("idle");
+  const [monthStatus, setMonthStatus] = useState<FieldStatus>("idle");
+  const weekSavedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const monthSavedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The quest sheet: "new" creates, a Rule edits that rule, null is closed.
   const [editing, setEditing] = useState<Rule | "new" | null>(null);
@@ -51,6 +75,78 @@ export default function RegrasPage() {
       active = false;
     };
   }, []);
+
+  function applyPrizes(p: Prizes) {
+    setPrizes(p);
+    setWeekInput(p.week);
+    setMonthInput(p.month);
+  }
+
+  function retryPrizes() {
+    setPrizesLoadError(false);
+    getPrizes()
+      .then(applyPrizes)
+      .catch(() => setPrizesLoadError(true));
+  }
+
+  useEffect(() => {
+    let active = true;
+    getPrizes()
+      .then((p) => active && applyPrizes(p))
+      .catch(() => active && setPrizesLoadError(true));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (weekSavedTimeout.current) clearTimeout(weekSavedTimeout.current);
+      if (monthSavedTimeout.current) clearTimeout(monthSavedTimeout.current);
+    },
+    [],
+  );
+
+  function blurWeek() {
+    const trimmed = weekInput.trim();
+    if (!prizes || trimmed === prizes.week) return;
+    setWeekStatus("saving");
+    setPrize("week", trimmed)
+      .then((updated) => {
+        setPrizes(updated);
+        setWeekStatus("saved");
+        if (weekSavedTimeout.current) clearTimeout(weekSavedTimeout.current);
+        weekSavedTimeout.current = setTimeout(() => setWeekStatus("idle"), 2000);
+      })
+      .catch(() => setWeekStatus("error"));
+  }
+
+  function blurMonth() {
+    const trimmed = monthInput.trim();
+    if (!prizes || trimmed === prizes.month) return;
+    setMonthStatus("saving");
+    setPrize("month", trimmed)
+      .then((updated) => {
+        setPrizes(updated);
+        setMonthStatus("saved");
+        if (monthSavedTimeout.current) clearTimeout(monthSavedTimeout.current);
+        monthSavedTimeout.current = setTimeout(() => setMonthStatus("idle"), 2000);
+      })
+      .catch(() => setMonthStatus("error"));
+  }
+
+  function prizeFieldCaption(status: FieldStatus) {
+    if (!prizes) return prizesLoadError ? null : <p className="bq-caption">Carregando…</p>;
+    if (status === "saving") return <p className="bq-caption">Salvando…</p>;
+    if (status === "saved") return <p className="bq-caption">Salvo</p>;
+    if (status === "error")
+      return (
+        <p className="bq-note" role="alert">
+          Não deu para salvar. Tenta de novo.
+        </p>
+      );
+    return null;
+  }
 
   function open(rule: Rule | "new") {
     setEditing(rule);
@@ -161,11 +257,35 @@ export default function RegrasPage() {
           <h2 className="bq-heading">Prêmios</h2>
           <div className="bq-stack -mt-2" style={{ gap: 16 }}>
             <Field label="Prêmio da semana">
-              <input className="bq-input" value={prizes.week} onChange={(e) => setPrizes({ ...prizes, week: e.target.value })} />
+              <input
+                className="bq-input"
+                value={weekInput}
+                onChange={(e) => setWeekInput(e.target.value)}
+                onBlur={blurWeek}
+                disabled={!prizes || weekStatus === "saving"}
+              />
+              {prizeFieldCaption(weekStatus)}
             </Field>
             <Field label="Prêmio do mês">
-              <input className="bq-input" value={prizes.month} onChange={(e) => setPrizes({ ...prizes, month: e.target.value })} />
+              <input
+                className="bq-input"
+                value={monthInput}
+                onChange={(e) => setMonthInput(e.target.value)}
+                onBlur={blurMonth}
+                disabled={!prizes || monthStatus === "saving"}
+              />
+              {prizeFieldCaption(monthStatus)}
             </Field>
+            {prizesLoadError && (
+              <>
+                <p className="bq-note" role="alert">
+                  Não deu para carregar. Tenta de novo.
+                </p>
+                <Button variant="small" onClick={retryPrizes}>
+                  Tentar de novo
+                </Button>
+              </>
+            )}
           </div>
         </>
       )}

@@ -92,6 +92,11 @@ func newServer(t *testing.T) *httptest.Server {
 			idgen.UUIDGenerator{},
 			systemClock,
 		)),
+		Prizes: controllers.NewPrizeController(service.NewPrizeService(
+			postgres.NewPrizeRepository(pool),
+			postgres.NewGuildRepository(pool),
+			systemClock,
+		)),
 		RequireAuth: middleware.RequireAuth(tokens),
 	})
 	srv := httptest.NewServer(router)
@@ -103,5 +108,12 @@ func newServer(t *testing.T) *httptest.Server {
 func resetRules(t *testing.T) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `DELETE FROM rules`)
+	require.NoError(t, err)
+}
+
+// resetPrizes empties the prizes table so each test starts from a clean guild.
+func resetPrizes(t *testing.T) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `DELETE FROM prizes`)
 	require.NoError(t, err)
 }

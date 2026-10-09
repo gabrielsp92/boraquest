@@ -1,13 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, Badge, Bar, Button, PrizeCard, RankRow, Segmented, Sheet, TopBar } from "@/components/ui";
-import { me, members, monthStandings, prizes, weekStandings, type MemberId } from "@/lib/data";
+import { getPrizes, type Prizes } from "@/lib/api";
+import { me, members, monthStandings, weekStandings, type MemberId } from "@/lib/data";
 
 export default function GuildaPage() {
   const [view, setView] = useState<"semana" | "mes">("semana");
   const [pending, setPending] = useState<MemberId[]>(weekStandings.filter((s) => s.auditPending).map((s) => s.member));
   const [asking, setAsking] = useState<MemberId | null>(null);
+
+  // Prizes: own fetch, independent of the standings above.
+  const [prizes, setPrizes] = useState<Prizes | null>(null);
+  const [prizesLoadError, setPrizesLoadError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getPrizes()
+      .then((p) => active && setPrizes(p))
+      .catch(() => active && setPrizesLoadError(true));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const standings = view === "semana" ? weekStandings : monthStandings;
   const top = standings[0]?.points || 1;
@@ -30,7 +45,15 @@ export default function GuildaPage() {
           </div>
         }
       />
-      {view === "semana" ? <PrizeCard label="Prêmio da semana" prize={prizes.week} /> : <PrizeCard label="Prêmio do mês" prize={prizes.month} icon="gift" />}
+      {prizesLoadError ? (
+        <PrizeCard label={view === "semana" ? "Prêmio da semana" : "Prêmio do mês"} prize="Não deu para carregar" icon={view === "semana" ? undefined : "gift"} />
+      ) : prizes ? (
+        view === "semana" ? (
+          <PrizeCard label="Prêmio da semana" prize={prizes.week || "Ainda sem prêmio"} />
+        ) : (
+          <PrizeCard label="Prêmio do mês" prize={prizes.month || "Ainda sem prêmio"} icon="gift" />
+        )
+      ) : null}
 
       <div className="bq-list">
         {standings.map((s, i) => (

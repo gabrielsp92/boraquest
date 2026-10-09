@@ -153,6 +153,77 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /prizes:
+    get:
+      summary: Get the week and month prizes of the caller's guild
+      operationId: getPrizes
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: >-
+            The guild's prizes. `updatedAt` is the zero time if no prize has
+            ever been set for this guild.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prizes"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /prizes/week:
+    put:
+      summary: Set the week prize of the caller's guild
+      description: Any member of the guild may update it. An empty string is valid.
+      operationId: setWeekPrize
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPrizeRequest"
+      responses:
+        "200":
+          description: The guild's prizes, with week updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prizes"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /prizes/month:
+    put:
+      summary: Set the month prize of the caller's guild
+      description: Any member of the guild may update it. An empty string is valid.
+      operationId: setMonthPrize
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPrizeRequest"
+      responses:
+        "200":
+          description: The guild's prizes, with month updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prizes"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     bearerAuth:
@@ -258,6 +329,27 @@ components:
           type: integer
           description: Maximum number of rules a guild can hold
           example: 40
+    SetPrizeRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          maxLength: 60
+          description: Trimmed before validation; empty string is valid
+    Prizes:
+      type: object
+      required: [week, month, updatedAt]
+      properties:
+        week:
+          type: string
+          maxLength: 60
+        month:
+          type: string
+          maxLength: 60
+        updatedAt:
+          type: string
+          format: date-time
+          description: Zero time if no prize has ever been set for this guild
     Error:
       type: object
       required: [error]
