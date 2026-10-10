@@ -82,6 +82,9 @@ func TestRepositoriesSurfaceDatabaseErrors(t *testing.T) {
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, user.ErrAlreadyExists)
 
+	_, err = postgres.NewUserRepository(closed).ListByIDs(ctx, []string{"lia"})
+	assert.Error(t, err)
+
 	guilds := postgres.NewGuildRepository(closed)
 	_, err = guilds.Get(ctx, "familia")
 	assert.Error(t, err)
@@ -209,6 +212,23 @@ func TestUserRepositoryCreateIsAtomic(t *testing.T) {
 	err = users.Create(ctx, ana, "\xff")
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, guild.ErrNotFound)
+}
+
+func TestUserRepositoryListByIDs(t *testing.T) {
+	ctx := context.Background()
+	users := postgres.NewUserRepository(pool)
+
+	got, err := users.ListByIDs(ctx, []string{"beto", "lia", "ghost-user"})
+	require.NoError(t, err)
+	ids := make([]string, len(got))
+	for i, u := range got {
+		ids[i] = u.ID
+	}
+	assert.ElementsMatch(t, []string{"beto", "lia"}, ids, "unknown ids are silently skipped")
+
+	got, err = users.ListByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []user.User{}, got, "empty ids short-circuits without querying")
 }
 
 func TestGuildRepository(t *testing.T) {

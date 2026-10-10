@@ -51,7 +51,8 @@ func main() {
 
 	// Application
 	healthService := service.NewHealthService(systemClock, version)
-	authService := service.NewAuthService(postgres.NewUserRepository(pool), security.BcryptComparer{}, tokens)
+	userRepository := postgres.NewUserRepository(pool)
+	authService := service.NewAuthService(userRepository, security.BcryptComparer{}, tokens)
 	ruleRepository := postgres.NewRuleRepository(pool)
 	guildRepository := postgres.NewGuildRepository(pool)
 	ruleService := service.NewRuleService(
@@ -73,6 +74,7 @@ func main() {
 		systemClock,
 		loc,
 	)
+	guildService := service.NewGuildService(guildRepository, userRepository)
 
 	// Interface
 	router := routes.NewRouter(routes.Controllers{
@@ -81,6 +83,7 @@ func main() {
 		Rules:       controllers.NewRuleController(ruleService),
 		Prizes:      controllers.NewPrizeController(prizeService),
 		Entries:     controllers.NewEntryController(entryService),
+		Guild:       controllers.NewGuildController(guildService),
 		RequireAuth: middleware.RequireAuth(tokens),
 	})
 

@@ -14,6 +14,7 @@ type Controllers struct {
 	Rules   *controllers.RuleController
 	Prizes  *controllers.PrizeController
 	Entries *controllers.EntryController
+	Guild   *controllers.GuildController
 	// RequireAuth guards every route that needs a signed-in user.
 	RequireAuth gin.HandlerFunc
 }
@@ -43,6 +44,9 @@ func NewRouter(c Controllers) *gin.Engine {
 	entries.GET("", c.Entries.List)
 	entries.POST("", c.Entries.Create)
 	entries.DELETE("/:id", c.Entries.Delete)
+
+	guildGroup := v1.Group("/guild", c.RequireAuth)
+	guildGroup.GET("/members", c.Guild.ListMembers)
 
 	return r
 }

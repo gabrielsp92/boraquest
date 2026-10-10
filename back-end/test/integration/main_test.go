@@ -111,6 +111,10 @@ func newServer(t *testing.T) *httptest.Server {
 			systemClock,
 			saoPaulo,
 		)),
+		Guild: controllers.NewGuildController(service.NewGuildService(
+			postgres.NewGuildRepository(pool),
+			postgres.NewUserRepository(pool),
+		)),
 		RequireAuth: middleware.RequireAuth(tokens),
 	})
 	srv := httptest.NewServer(router)
