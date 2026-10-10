@@ -33,6 +33,10 @@ type EntryRepository interface {
 	Delete(ctx context.Context, guildID, id string) error
 	// ListByMember returns a member's entries with occurredOn in [from, to], newest first.
 	ListByMember(ctx context.Context, guildID, memberID string, from, to time.Time) ([]entry.Entry, error)
+	// SumByGuild returns, for every member of guildID with at least one entry whose
+	// occurredOn falls in [from, to], their total points and count of sum-type entries.
+	// A member with zero entries in range is simply absent from the result.
+	SumByGuild(ctx context.Context, guildID string, from, to time.Time) ([]MemberTotal, error)
 }
 
 // EntryService manages entries logged by members of the caller's guild.

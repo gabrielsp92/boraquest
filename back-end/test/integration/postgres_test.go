@@ -104,6 +104,8 @@ func TestRepositoriesSurfaceDatabaseErrors(t *testing.T) {
 	assert.NotErrorIs(t, err, entry.ErrNotFound)
 	_, err = entries.ListByMember(ctx, "g1", "lia", time.Now(), time.Now())
 	assert.Error(t, err)
+	_, err = entries.SumByGuild(ctx, "g1", time.Now(), time.Now())
+	assert.Error(t, err)
 }
 
 func TestEntryRepositoryCreateStatementErrors(t *testing.T) {

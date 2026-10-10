@@ -21,6 +21,8 @@ type fakeEntryRepo struct {
 	deleteErr error
 	listed    []entry.Entry
 	listErr   error
+	summed    []service.MemberTotal
+	sumErr    error
 
 	created   entry.Entry
 	getArgs   [2]string
@@ -28,6 +30,10 @@ type fakeEntryRepo struct {
 	listArgs  struct {
 		guildID, memberID string
 		from, to          time.Time
+	}
+	sumArgs struct {
+		guildID  string
+		from, to time.Time
 	}
 }
 
@@ -49,6 +55,11 @@ func (f *fakeEntryRepo) Delete(_ context.Context, guildID, id string) error {
 func (f *fakeEntryRepo) ListByMember(_ context.Context, guildID, memberID string, from, to time.Time) ([]entry.Entry, error) {
 	f.listArgs.guildID, f.listArgs.memberID, f.listArgs.from, f.listArgs.to = guildID, memberID, from, to
 	return f.listed, f.listErr
+}
+
+func (f *fakeEntryRepo) SumByGuild(_ context.Context, guildID string, from, to time.Time) ([]service.MemberTotal, error) {
+	f.sumArgs.guildID, f.sumArgs.from, f.sumArgs.to = guildID, from, to
+	return f.summed, f.sumErr
 }
 
 var saoPaulo = mustLoadLocation()

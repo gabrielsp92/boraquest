@@ -115,6 +115,12 @@ func newServer(t *testing.T) *httptest.Server {
 			postgres.NewGuildRepository(pool),
 			postgres.NewUserRepository(pool),
 		)),
+		Scoreboard: controllers.NewScoreboardController(service.NewScoreboardService(
+			postgres.NewEntryRepository(pool),
+			postgres.NewGuildRepository(pool),
+			systemClock,
+			saoPaulo,
+		)),
 		RequireAuth: middleware.RequireAuth(tokens),
 	})
 	srv := httptest.NewServer(router)

@@ -79,3 +79,9 @@ export const deleteEntry = (id: string) => apiFetch<void>(`/entries/${encodeURIC
 export type GuildMember = { id: string; name: string };
 export type GuildMemberList = { members: GuildMember[] };
 export const listGuildMembers = () => apiFetch<GuildMemberList>("/guild/members");
+
+export type ScoreboardPeriod = "week" | "month";
+export type Standing = { memberId: string; points: number; completed: number };
+export type Scoreboard = { standings: Standing[]; from: string; to: string; today: string };
+
+export const getScoreboard = (period: ScoreboardPeriod) => apiFetch<Scoreboard>(`/scoreboard?period=${period}`);

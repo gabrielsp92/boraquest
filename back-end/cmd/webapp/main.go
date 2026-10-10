@@ -66,8 +66,9 @@ func main() {
 		guildRepository,
 		systemClock,
 	)
+	entryRepository := postgres.NewEntryRepository(pool)
 	entryService := service.NewEntryService(
-		postgres.NewEntryRepository(pool),
+		entryRepository,
 		ruleRepository,
 		guildRepository,
 		idgen.UUIDGenerator{},
@@ -75,6 +76,7 @@ func main() {
 		loc,
 	)
 	guildService := service.NewGuildService(guildRepository, userRepository)
+	scoreboardService := service.NewScoreboardService(entryRepository, guildRepository, systemClock, loc)
 
 	// Interface
 	router := routes.NewRouter(routes.Controllers{
@@ -84,6 +86,7 @@ func main() {
 		Prizes:      controllers.NewPrizeController(prizeService),
 		Entries:     controllers.NewEntryController(entryService),
 		Guild:       controllers.NewGuildController(guildService),
+		Scoreboard:  controllers.NewScoreboardController(scoreboardService),
 		RequireAuth: middleware.RequireAuth(tokens),
 	})
 
