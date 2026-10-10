@@ -41,6 +41,19 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (user.Us
 	return u, err
 }
 
+// ListByIDs returns every user whose id is in ids, in no particular order. An
+// empty ids returns an empty slice without querying.
+func (r *UserRepository) ListByIDs(ctx context.Context, ids []string) ([]user.User, error) {
+	if len(ids) == 0 {
+		return []user.User{}, nil
+	}
+	rows, err := r.pool.Query(ctx, `SELECT id, name, email, password_hash FROM users WHERE id = ANY($1)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowToStructByPos[user.User])
+}
+
 // Create inserts u as a member of guildID, atomically. A taken email yields
 // user.ErrAlreadyExists and an unknown guild guild.ErrNotFound.
 func (r *UserRepository) Create(ctx context.Context, u user.User, guildID string) error {

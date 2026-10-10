@@ -9,10 +9,12 @@ import (
 
 // Controllers groups every controller and middleware the router needs.
 type Controllers struct {
-	Health *controllers.HealthController
-	Auth   *controllers.AuthController
-	Rules  *controllers.RuleController
-	Prizes *controllers.PrizeController
+	Health  *controllers.HealthController
+	Auth    *controllers.AuthController
+	Rules   *controllers.RuleController
+	Prizes  *controllers.PrizeController
+	Entries *controllers.EntryController
+	Guild   *controllers.GuildController
 	// RequireAuth guards every route that needs a signed-in user.
 	RequireAuth gin.HandlerFunc
 }
@@ -37,6 +39,14 @@ func NewRouter(c Controllers) *gin.Engine {
 	prizes.GET("", c.Prizes.Get)
 	prizes.PUT("/week", c.Prizes.SetWeek)
 	prizes.PUT("/month", c.Prizes.SetMonth)
+
+	entries := v1.Group("/entries", c.RequireAuth)
+	entries.GET("", c.Entries.List)
+	entries.POST("", c.Entries.Create)
+	entries.DELETE("/:id", c.Entries.Delete)
+
+	guildGroup := v1.Group("/guild", c.RequireAuth)
+	guildGroup.GET("/members", c.Guild.ListMembers)
 
 	return r
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/entry"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/guild"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/rule"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/user"
@@ -81,6 +82,9 @@ func TestRepositoriesSurfaceDatabaseErrors(t *testing.T) {
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, user.ErrAlreadyExists)
 
+	_, err = postgres.NewUserRepository(closed).ListByIDs(ctx, []string{"lia"})
+	assert.Error(t, err)
+
 	guilds := postgres.NewGuildRepository(closed)
 	_, err = guilds.Get(ctx, "familia")
 	assert.Error(t, err)
@@ -88,6 +92,54 @@ func TestRepositoriesSurfaceDatabaseErrors(t *testing.T) {
 	_, err = guilds.FindByMember(ctx, "lia")
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, guild.ErrNotMember)
+
+	entries := postgres.NewEntryRepository(closed)
+	e := entry.Entry{ID: "e1", GuildID: "g1", RuleID: "r1", MemberID: "lia", LoggedBy: "lia", ScoreType: rule.ScoreTypeSum}
+	assert.Error(t, entries.Create(ctx, e))
+	_, err = entries.Get(ctx, "g1", "e1")
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, entry.ErrNotFound)
+	err = entries.Delete(ctx, "g1", "e1")
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, entry.ErrNotFound)
+	_, err = entries.ListByMember(ctx, "g1", "lia", time.Now(), time.Now())
+	assert.Error(t, err)
+}
+
+func TestEntryRepositoryCreateStatementErrors(t *testing.T) {
+	resetEntries(t)
+	ctx := context.Background()
+	entries := postgres.NewEntryRepository(pool)
+	now := time.Now()
+
+	// Invalid UTF-8 in the advisory-lock key (via RuleID) is rejected.
+	bad := entry.Entry{
+		ID: "e1", GuildID: "familia", RuleID: "\xff", RuleName: "x", ScoreType: rule.ScoreTypeSum, Points: 1,
+		MemberID: "lia", LoggedBy: "lia", OccurredOn: now, PeriodKey: now, CreatedAt: now,
+	}
+	assert.Error(t, entries.Create(ctx, bad))
+
+	// An unknown member violates the users foreign key on insert.
+	unknownMember := bad
+	unknownMember.RuleID, unknownMember.MemberID = "r1", "ghost"
+	err := entries.Create(ctx, unknownMember)
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, entry.ErrAlreadyLogged)
+
+	// A period_key outside Postgres's representable date range fails the
+	// exists check itself, after the advisory lock already succeeded.
+	outOfRange := bad
+	outOfRange.RuleID, outOfRange.PeriodKey = "r1", time.Date(6000000, 1, 1, 0, 0, 0, 0, time.UTC)
+	err = entries.Create(ctx, outOfRange)
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, entry.ErrAlreadyLogged)
+}
+
+func TestEntryRepositoryDeleteNotFound(t *testing.T) {
+	resetEntries(t)
+	entries := postgres.NewEntryRepository(pool)
+
+	assert.ErrorIs(t, entries.Delete(context.Background(), "familia", "ghost-id"), entry.ErrNotFound)
 }
 
 func TestCreateWithLimitStatementErrors(t *testing.T) {
@@ -160,6 +212,23 @@ func TestUserRepositoryCreateIsAtomic(t *testing.T) {
 	err = users.Create(ctx, ana, "\xff")
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, guild.ErrNotFound)
+}
+
+func TestUserRepositoryListByIDs(t *testing.T) {
+	ctx := context.Background()
+	users := postgres.NewUserRepository(pool)
+
+	got, err := users.ListByIDs(ctx, []string{"beto", "lia", "ghost-user"})
+	require.NoError(t, err)
+	ids := make([]string, len(got))
+	for i, u := range got {
+		ids[i] = u.ID
+	}
+	assert.ElementsMatch(t, []string{"beto", "lia"}, ids, "unknown ids are silently skipped")
+
+	got, err = users.ListByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []user.User{}, got, "empty ids short-circuits without querying")
 }
 
 func TestGuildRepository(t *testing.T) {

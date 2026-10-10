@@ -34,7 +34,7 @@ export function IconButton({ icon, label, ...rest }: ButtonHTMLAttributes<HTMLBu
 }
 
 /* ---------- Avatar ---------- */
-export function Avatar({ member, size, selected, crown }: { member: Member; size?: "sm" | "lg" | "xl"; selected?: boolean; crown?: boolean }) {
+export function Avatar({ member, size, selected, crown }: { member: { id: string; name: string; avatar: string }; size?: "sm" | "lg" | "xl"; selected?: boolean; crown?: boolean }) {
   return (
     <span className={cx("bq-avatar", size && `bq-avatar--${size}`, selected && "bq-avatar--selected")}>
       <img src={member.avatar} alt={member.name} />
@@ -63,8 +63,9 @@ type QuestProps = {
   selected?: boolean;
   onClick?: () => void;
   pressed?: boolean;
+  disabled?: boolean;
 };
-export function QuestRow({ name, points, kind, meta, selected, onClick, pressed }: QuestProps) {
+export function QuestRow({ name, points, kind, meta, selected, onClick, pressed, disabled }: QuestProps) {
   const mark: IconName = kind === "gain" ? "plus" : kind === "loss" ? "minus" : "check";
   const className = cx("bq-quest", kind !== "todo" && `bq-quest--${kind}`, selected && "bq-quest--selected");
   const body = (
@@ -80,7 +81,7 @@ export function QuestRow({ name, points, kind, meta, selected, onClick, pressed 
     </>
   );
   return onClick ? (
-    <button type="button" className={className} onClick={onClick} aria-pressed={pressed}>
+    <button type="button" className={className} onClick={onClick} aria-pressed={pressed} disabled={disabled}>
       {body}
     </button>
   ) : (
@@ -250,7 +251,7 @@ export function PrizeCard({ label, prize, icon = "trophy" }: { label: string; pr
 }
 
 /* ---------- Banner ---------- */
-export function Banner({ member, title, text }: { member: Member; title: string; text?: string }) {
+export function Banner({ member, title, text }: { member: { id: string; name: string; avatar: string }; title: string; text?: string }) {
   return (
     <div className="bq-banner" role="status">
       <Avatar member={member} />

@@ -1,18 +1,68 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Badge, DayCard, EmptyState, RankRow, ScoreHeader, Segmented, TopBar } from "@/components/ui";
+import { Badge, Button, DayCard, EmptyState, RankRow, ScoreHeader, Segmented, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { members, pastWeeks, questById, sum, today, week } from "@/lib/data";
+import { members, pastWeeks } from "@/lib/data";
+import { listEntries, listGuildMembers, type Entry, type EntryList, type GuildMember } from "@/lib/api";
+import { dayLabel, weekRangeLabel } from "@/lib/date";
 
 export default function SemanaPage() {
   const [view, setView] = useState<"atual" | "anteriores">("atual");
-  const total = week.reduce((n, d) => n + sum(d.done) + sum(d.slips.map((s) => s.questId)), 0);
+
+  const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [from, setFrom] = useState<string | null>(null);
+  const [to, setTo] = useState<string | null>(null);
+  const [todayIso, setTodayIso] = useState<string | null>(null);
+  const [guildMembers, setGuildMembers] = useState<GuildMember[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  function applyData(list: EntryList) {
+    setEntries(list.entries);
+    setFrom(list.from);
+    setTo(list.to);
+    setTodayIso(list.today);
+  }
+
+  function retry() {
+    setLoadError(false);
+    Promise.all([listEntries("week"), listGuildMembers()])
+      .then(([list, { members }]) => {
+        applyData(list);
+        setGuildMembers(members);
+      })
+      .catch(() => setLoadError(true));
+  }
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([listEntries("week"), listGuildMembers()])
+      .then(([list, { members }]) => {
+        if (!active) return;
+        applyData(list);
+        setGuildMembers(members);
+      })
+      .catch(() => active && setLoadError(true));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const memberById = new Map((guildMembers ?? []).map((m) => [m.id, m]));
+  const displayName = (id: string) => memberById.get(id)?.name ?? id;
+
+  // Group entries by day, newest/today first.
+  const byDay = new Map<string, Entry[]>();
+  (entries ?? []).forEach((e) => {
+    byDay.set(e.occurredOn, [...(byDay.get(e.occurredOn) ?? []), e]);
+  });
+  const days = [...byDay.keys()].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  const total = (entries ?? []).reduce((n, e) => n + e.points, 0);
 
   return (
     <>
-      <TopBar title="Semana" caption={view === "atual" ? today.week : "Quem já venceu"} />
+      <TopBar title="Semana" caption={view === "atual" ? (from && to ? weekRangeLabel(from, to) : undefined) : "Quem já venceu"} />
       <Segmented
         value={view}
         onChange={setView}
@@ -23,7 +73,17 @@ export default function SemanaPage() {
       />
 
       {view === "atual" &&
-        (week.length === 0 ? (
+        (entries === null || guildMembers === null ? (
+          loadError ? (
+            <EmptyState icon="calendar" title="Não deu para carregar" text="Confira sua conexão e tente de novo.">
+              <Button onClick={retry}>Tentar de novo</Button>
+            </EmptyState>
+          ) : (
+            <p className="bq-caption" role="status">
+              Carregando semana…
+            </p>
+          )
+        ) : entries.length === 0 ? (
           <EmptyState icon="calendar" title="A história começa hoje" text="Complete a primeira quest e a semana aparece aqui.">
             <Link href="/hoje" className="bq-btn">
               Ir para Hoje
@@ -33,20 +93,26 @@ export default function SemanaPage() {
           <>
             <ScoreHeader score={total} label="pontos na semana" />
             <div className="bq-list" style={{ gap: 12 }}>
-              {week.map((d) => (
-                <DayCard key={d.label} title={d.label} gained={sum(d.done)} lost={sum(d.slips.map((s) => s.questId))} photos={d.photos}>
-                  {d.done.map((id) => (
-                    <Badge key={id} kind="gain" icon="check">
-                      {questById(id).short}
-                    </Badge>
-                  ))}
-                  {d.slips.map((s, i) => (
-                    <Badge key={i} kind="loss">
-                      {questById(s.questId).short} · por {members[s.by].name}
-                    </Badge>
-                  ))}
-                </DayCard>
-              ))}
+              {days.map((day) => {
+                const dayEntries = byDay.get(day) ?? [];
+                const gained = dayEntries.filter((e) => e.points > 0).reduce((n, e) => n + e.points, 0);
+                const lost = dayEntries.filter((e) => e.points < 0).reduce((n, e) => n + e.points, 0);
+                return (
+                  <DayCard key={day} title={dayLabel(day, day === todayIso)} gained={gained} lost={lost} photos={0}>
+                    {dayEntries.map((e) =>
+                      e.scoreType === "sum" ? (
+                        <Badge key={e.id} kind="gain" icon="check">
+                          {e.ruleName}
+                        </Badge>
+                      ) : (
+                        <Badge key={e.id} kind="loss">
+                          {e.ruleName} · por {displayName(e.loggedBy)}
+                        </Badge>
+                      ),
+                    )}
+                  </DayCard>
+                );
+              })}
             </div>
           </>
         ))}

@@ -1,6 +1,6 @@
 # Prize definitions: real weekly and monthly prizes on Regras and Guilda
 
-Status: Ready
+Status: Done
 Last updated: 2026-10-09
 Depends on: none (independent of `quest-entries.md`/`scoreboard.md`/`profile-avatar.md` — see Notes for the one file both this spec and `scoreboard.md` touch, `app/(tabs)/guilda/page.tsx`, and why that's low-risk)
 
