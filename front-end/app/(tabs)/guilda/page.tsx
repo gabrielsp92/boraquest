@@ -1,14 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Avatar, Badge, Bar, Button, PrizeCard, RankRow, Segmented, Sheet, TopBar } from "@/components/ui";
-import { getPrizes, type Prizes } from "@/lib/api";
-import { me, members, monthStandings, weekStandings, type MemberId } from "@/lib/data";
+import { Avatar, Badge, Bar, Button, EmptyState, PrizeCard, RankRow, Segmented, Sheet, TopBar } from "@/components/ui";
+import { getPrizes, getScoreboard, listGuildMembers, type GuildMember, type Prizes, type Standing } from "@/lib/api";
+import { useSession } from "@/lib/auth";
+import { DEFAULT_AVATAR } from "@/lib/avatars";
+
+function completedLabel(n: number) {
+  return n === 1 ? "1 tarefa concluída" : `${n} tarefas concluídas`;
+}
 
 export default function GuildaPage() {
+  const session = useSession();
+  const callerId = session?.user?.id;
+
   const [view, setView] = useState<"semana" | "mes">("semana");
-  const [pending, setPending] = useState<MemberId[]>(weekStandings.filter((s) => s.auditPending).map((s) => s.member));
-  const [asking, setAsking] = useState<MemberId | null>(null);
+  const [standings, setStandings] = useState<Standing[] | null>(null);
+  const [guildMembers, setGuildMembers] = useState<GuildMember[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  // Which view the standings/loadError above were fetched for; while it doesn't
+  // match `view`, a toggle is in flight and the previous period's data is stale.
+  const [loadedView, setLoadedView] = useState<"semana" | "mes" | null>(null);
+  const [pending, setPending] = useState<string[]>([]);
+  const [asking, setAsking] = useState<string | null>(null);
 
   // Prizes: own fetch, independent of the standings above.
   const [prizes, setPrizes] = useState<Prizes | null>(null);
@@ -24,14 +38,56 @@ export default function GuildaPage() {
     };
   }, []);
 
-  const standings = view === "semana" ? weekStandings : monthStandings;
-  const top = standings[0]?.points || 1;
+  function retry() {
+    Promise.all([getScoreboard(view === "semana" ? "week" : "month"), listGuildMembers()]).then(
+      ([s, ml]) => {
+        setStandings(s.standings);
+        setGuildMembers(ml.members);
+        setLoadError(false);
+        setLoadedView(view);
+      },
+      () => {
+        setLoadError(true);
+        setLoadedView(view);
+      },
+    );
+  }
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([getScoreboard(view === "semana" ? "week" : "month"), listGuildMembers()]).then(
+      ([s, ml]) => {
+        if (!active) return;
+        setStandings(s.standings);
+        setGuildMembers(ml.members);
+        setLoadError(false);
+        setLoadedView(view);
+      },
+      () => {
+        if (!active) return;
+        setLoadError(true);
+        setLoadedView(view);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [view]);
+
+  // While the current view's fetch hasn't landed yet, treat the previous period's
+  // data as not-yet-loaded so a toggle never flashes stale numbers (Business rule 6).
+  const currentStandings = loadedView === view ? standings : null;
+  const currentLoadError = loadedView === view && loadError;
+  const top = currentStandings?.[0]?.points || 1;
+
+  const memberById = new Map((guildMembers ?? []).map((m) => [m.id, m]));
+  const toMember = (id: string) => ({ id, name: memberById.get(id)?.name ?? id, avatar: DEFAULT_AVATAR });
 
   return (
     <>
       <TopBar
         title="Guilda"
-        caption={`${standings.length} aventureiros`}
+        caption={currentStandings ? `${currentStandings.length} aventureiros` : undefined}
         right={
           <div style={{ width: 196 }}>
             <Segmented
@@ -55,34 +111,45 @@ export default function GuildaPage() {
         )
       ) : null}
 
-      <div className="bq-list">
-        {standings.map((s, i) => (
-          <RankRow key={s.member} position={i + 1} member={members[s.member]} points={s.points} leader={i === 0}>
-            {view === "mes" ? (
-              <Bar percent={Math.round((s.points / top) * 100)} />
-            ) : pending.includes(s.member) ? (
-              <Badge kind="audit" icon="shield">
-                Auditoria pendente
-              </Badge>
-            ) : s.member === me ? (
-              <Badge>Você</Badge>
-            ) : (
-              <Button variant="small" icon="shield" onClick={() => setAsking(s.member)}>
-                Pedir auditoria
-              </Button>
-            )}
-          </RankRow>
-        ))}
-      </div>
+      {!session || (currentStandings === null && !currentLoadError) ? (
+        <p className="bq-caption" role="status">
+          Carregando guilda…
+        </p>
+      ) : currentStandings === null ? (
+        <EmptyState icon="users" title="Não deu para carregar" text="Confira sua conexão e tente de novo.">
+          <Button onClick={retry}>Tentar de novo</Button>
+        </EmptyState>
+      ) : (
+        <div className="bq-list">
+          {currentStandings.map((s, i) => (
+            <RankRow key={s.memberId} position={i + 1} member={toMember(s.memberId)} points={s.points} leader={i === 0}>
+              {view === "mes" ? (
+                <Bar percent={Math.round((s.points / top) * 100)} />
+              ) : pending.includes(s.memberId) ? (
+                <Badge kind="audit" icon="shield">
+                  Auditoria pendente
+                </Badge>
+              ) : s.memberId === callerId ? (
+                <Badge>Você</Badge>
+              ) : (
+                <Button variant="small" icon="shield" onClick={() => setAsking(s.memberId)}>
+                  Pedir auditoria
+                </Button>
+              )}
+              <p className="bq-caption">{completedLabel(s.completed)}</p>
+            </RankRow>
+          ))}
+        </div>
+      )}
 
       <Sheet open={!!asking} onClose={() => setAsking(null)}>
         {asking && (
           <>
             <div className="bq-stack bq-center">
-              <Avatar member={members[asking]} size="lg" />
-              <h2 className="bq-title">Pedir auditoria: {members[asking].name}?</h2>
+              <Avatar member={toMember(asking)} size="lg" />
+              <h2 className="bq-title">Pedir auditoria: {toMember(asking).name}?</h2>
               <p className="bq-text">
-                {members[asking].name} vai precisar provar as quests da semana, com fotos ou uma explicação. Até você aprovar, não pode vencer.
+                {toMember(asking).name} vai precisar provar as quests da semana, com fotos ou uma explicação. Até você aprovar, não pode vencer.
               </p>
             </div>
             <div className="bq-stack">

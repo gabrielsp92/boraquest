@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gabrielsp92/boraquest/back-end/internal/src/app/service"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/entry"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/rule"
 )
@@ -85,6 +86,27 @@ func (r *EntryRepository) ListByMember(ctx context.Context, guildID, memberID st
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (entry.Entry, error) { return scanEntry(row) })
+}
+
+// SumByGuild returns, for every member of guildID with at least one entry whose
+// occurredOn falls in [from, to], their total points and count of sum-type entries.
+func (r *EntryRepository) SumByGuild(ctx context.Context, guildID string, from, to time.Time) ([]service.MemberTotal, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT member_id,
+		       COALESCE(SUM(points), 0)::int AS points,
+		       COUNT(*) FILTER (WHERE score_type = 'sum')::int AS completed
+		FROM entries
+		WHERE guild_id = $1 AND occurred_on BETWEEN $2 AND $3
+		GROUP BY member_id`,
+		guildID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (service.MemberTotal, error) {
+		var t service.MemberTotal
+		err := row.Scan(&t.MemberID, &t.Points, &t.Completed)
+		return t, err
+	})
 }
 
 func scanEntry(row pgx.Row) (entry.Entry, error) {

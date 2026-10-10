@@ -3,7 +3,6 @@
 // Usage rules for every one of them are in design/components/<Name>/README.md.
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
-import type { Member } from "@/lib/data";
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -183,7 +182,21 @@ export function Stepper({ value, onChange, step = 5, min = 5, max = 100, format 
 }
 
 /* ---------- Rank row ---------- */
-export function RankRow({ position, member, points, leader, crown = leader, children }: { position?: number; member: Member; points: number; leader?: boolean; crown?: boolean; children?: ReactNode }) {
+export function RankRow({
+  position,
+  member,
+  points,
+  leader,
+  crown = leader,
+  children,
+}: {
+  position?: number;
+  member: { id: string; name: string; avatar: string };
+  points: number;
+  leader?: boolean;
+  crown?: boolean;
+  children?: ReactNode;
+}) {
   return (
     <div className={cx("bq-rank", leader && "bq-rank--leader")}>
       {position !== undefined && <span className="bq-rank__pos">{position}</span>}
@@ -193,7 +206,7 @@ export function RankRow({ position, member, points, leader, crown = leader, chil
         {children}
       </div>
       <p className="bq-rank__score">
-        {points}
+        {points < 0 ? `−${Math.abs(points)}` : points}
         <small>pontos</small>
       </p>
     </div>
