@@ -1,6 +1,6 @@
 # Quest entries: mark quests done, log slips, and real scores on Hoje and Semana
 
-Status: Ready
+Status: Done
 Last updated: 2026-10-09
 Depends on: none (builds on the Rules CRUD and the Postgres-backed guild model already shipped: `back-end/internal/src/domain/rule`, `back-end/internal/src/infrastructure/postgres/guild_repository.go`, `front-end/app/(tabs)/regras/page.tsx`)
 
