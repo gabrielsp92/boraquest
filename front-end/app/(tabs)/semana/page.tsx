@@ -4,13 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, DayCard, EmptyState, RankRow, ScoreHeader, Segmented, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { members, pastWeeks, type MemberId } from "@/lib/data";
-import { listEntries, type Entry, type EntryList } from "@/lib/api";
+import { members, pastWeeks } from "@/lib/data";
+import { listEntries, listGuildMembers, type Entry, type EntryList, type GuildMember } from "@/lib/api";
 import { dayLabel, weekRangeLabel } from "@/lib/date";
-
-function displayName(id: string) {
-  return members[id as MemberId]?.name ?? id;
-}
 
 export default function SemanaPage() {
   const [view, setView] = useState<"atual" | "anteriores">("atual");
@@ -19,6 +15,7 @@ export default function SemanaPage() {
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
   const [todayIso, setTodayIso] = useState<string | null>(null);
+  const [guildMembers, setGuildMembers] = useState<GuildMember[] | null>(null);
   const [loadError, setLoadError] = useState(false);
 
   function applyData(list: EntryList) {
@@ -30,20 +27,30 @@ export default function SemanaPage() {
 
   function retry() {
     setLoadError(false);
-    listEntries("week")
-      .then(applyData)
+    Promise.all([listEntries("week"), listGuildMembers()])
+      .then(([list, { members }]) => {
+        applyData(list);
+        setGuildMembers(members);
+      })
       .catch(() => setLoadError(true));
   }
 
   useEffect(() => {
     let active = true;
-    listEntries("week")
-      .then((list) => active && applyData(list))
+    Promise.all([listEntries("week"), listGuildMembers()])
+      .then(([list, { members }]) => {
+        if (!active) return;
+        applyData(list);
+        setGuildMembers(members);
+      })
       .catch(() => active && setLoadError(true));
     return () => {
       active = false;
     };
   }, []);
+
+  const memberById = new Map((guildMembers ?? []).map((m) => [m.id, m]));
+  const displayName = (id: string) => memberById.get(id)?.name ?? id;
 
   // Group entries by day, newest/today first.
   const byDay = new Map<string, Entry[]>();
@@ -66,7 +73,7 @@ export default function SemanaPage() {
       />
 
       {view === "atual" &&
-        (entries === null ? (
+        (entries === null || guildMembers === null ? (
           loadError ? (
             <EmptyState icon="calendar" title="Não deu para carregar" text="Confira sua conexão e tente de novo.">
               <Button onClick={retry}>Tentar de novo</Button>
