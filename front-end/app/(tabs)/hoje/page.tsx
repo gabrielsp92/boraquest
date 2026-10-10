@@ -4,14 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Avatar, Banner, Button, Confetti, EmptyState, Points, QuestRow, ScoreHeader, Sheet, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { memberList, members, type MemberId } from "@/lib/data";
 import { useSession } from "@/lib/auth";
 import { todayCaption } from "@/lib/date";
-import { ApiError, createEntry, deleteEntry, listEntries, listRules, rulePoints, type Entry, type EntryList, type Rule, type RuleList } from "@/lib/api";
-
-function displayName(id: string) {
-  return members[id as MemberId]?.name ?? id;
-}
+import { DEFAULT_AVATAR } from "@/lib/avatars";
+import {
+  ApiError,
+  createEntry,
+  deleteEntry,
+  listEntries,
+  listGuildMembers,
+  listRules,
+  rulePoints,
+  type Entry,
+  type EntryList,
+  type GuildMember,
+  type GuildMemberList,
+  type Rule,
+  type RuleList,
+} from "@/lib/api";
 
 export default function HojePage() {
   const session = useSession();
@@ -19,6 +29,7 @@ export default function HojePage() {
   const [rules, setRules] = useState<Rule[] | null>(null);
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [todayIso, setTodayIso] = useState<string | null>(null);
+  const [guildMembers, setGuildMembers] = useState<GuildMember[] | null>(null);
   const [loadError, setLoadError] = useState(false);
 
   const [busyRuleIds, setBusyRuleIds] = useState<Set<string>>(new Set());
@@ -27,31 +38,32 @@ export default function HojePage() {
   const [justChecked, setJustChecked] = useState<string | null>(null);
 
   const [slipOpen, setSlipOpen] = useState(false);
-  const [slipWho, setSlipWho] = useState<MemberId>(memberList[0].id);
+  const [slipWho, setSlipWho] = useState<string>("");
   const [slipWhat, setSlipWhat] = useState<string | undefined>(undefined);
   const [slipBusy, setSlipBusy] = useState(false);
   const [slipFormError, setSlipFormError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<MemberId | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
-  function applyData(ruleList: RuleList, entryList: EntryList) {
+  function applyData(ruleList: RuleList, entryList: EntryList, memberList: GuildMemberList) {
     setRules(ruleList.rules);
     setEntries(entryList.entries);
     setTodayIso(entryList.today);
+    setGuildMembers(memberList.members);
   }
 
   function retry() {
     setLoadError(false);
-    Promise.all([listRules(), listEntries("today")])
-      .then(([rl, el]) => applyData(rl, el))
+    Promise.all([listRules(), listEntries("today"), listGuildMembers()])
+      .then(([rl, el, ml]) => applyData(rl, el, ml))
       .catch(() => setLoadError(true));
   }
 
   useEffect(() => {
     let active = true;
-    Promise.all([listRules(), listEntries("today")])
-      .then(([rl, el]) => active && applyData(rl, el))
+    Promise.all([listRules(), listEntries("today"), listGuildMembers()])
+      .then(([rl, el, ml]) => active && applyData(rl, el, ml))
       .catch(() => active && setLoadError(true));
     return () => {
       active = false;
@@ -75,7 +87,7 @@ export default function HojePage() {
     );
   }
 
-  if (loadError || rules === null || entries === null || todayIso === null) {
+  if (loadError || rules === null || entries === null || todayIso === null || guildMembers === null) {
     return (
       <>
         <TopBar title="Hoje" />
@@ -87,7 +99,10 @@ export default function HojePage() {
   }
 
   const me = session.user.id;
-  const meMember = members[me as MemberId];
+  const memberById = new Map(guildMembers.map((m) => [m.id, m]));
+  const displayName = (id: string) => memberById.get(id)?.name ?? id;
+  const meMember = memberById.get(me);
+  const meAvatarMember = meMember && { id: meMember.id, name: meMember.name, avatar: DEFAULT_AVATAR };
 
   const myQuests = rules.filter((r) => r.scoreType === "sum" && r.frequency === "daily");
   const negativeQuests = rules.filter((r) => r.scoreType === "decrease");
@@ -160,7 +175,7 @@ export default function HojePage() {
   }
 
   function openSlipSheet() {
-    setSlipWho(me as MemberId);
+    setSlipWho(me);
     setSlipWhat(negativeQuests[0]?.id);
     setSlipFormError(null);
     setSlipOpen(true);
@@ -169,7 +184,7 @@ export default function HojePage() {
   if (myQuests.length === 0) {
     return (
       <>
-        <TopBar title={`Oi, ${session.user.name}!`} caption={todayCaption(todayIso)} right={meMember && <Avatar member={meMember} />} />
+        <TopBar title={`Oi, ${session.user.name}!`} caption={todayCaption(todayIso)} right={meAvatarMember && <Avatar member={meAvatarMember} />} />
         <EmptyState icon="sun" title="Nenhuma quest ainda" text="Crie as primeiras quests da guilda para começar o jogo.">
           <Link href="/regras" className="bq-btn">
             Criar quests
@@ -184,13 +199,13 @@ export default function HojePage() {
 
   return (
     <>
-      <TopBar title={`Oi, ${session.user.name}!`} caption={todayCaption(todayIso)} right={meMember && <Avatar member={meMember} />} />
+      <TopBar title={`Oi, ${session.user.name}!`} caption={todayCaption(todayIso)} right={meAvatarMember && <Avatar member={meAvatarMember} />} />
       <ScoreHeader score={score} label="pontos hoje" done={doneCount} total={myQuests.length} />
 
       {notice && (
         <Banner
-          member={members[notice]}
-          title={`Deslize anotado para ${members[notice].name}`}
+          member={{ id: notice, name: displayName(notice), avatar: DEFAULT_AVATAR }}
+          title={`Deslize anotado para ${displayName(notice)}`}
           text={`Vai aparecer como “anotado por ${session.user.name}”.`}
         />
       )}
@@ -258,9 +273,9 @@ export default function HojePage() {
         <div className="bq-field">
           <span className="bq-label">Quem escorregou?</span>
           <div className="bq-row" style={{ alignItems: "flex-start" }}>
-            {memberList.map((m) => (
+            {guildMembers.map((m) => (
               <button key={m.id} type="button" className="bq-pick" aria-pressed={m.id === slipWho} onClick={() => setSlipWho(m.id)}>
-                <Avatar member={m} selected={m.id === slipWho} />
+                <Avatar member={{ id: m.id, name: m.name, avatar: DEFAULT_AVATAR }} selected={m.id === slipWho} />
                 <span>{m.name}</span>
               </button>
             ))}
@@ -288,7 +303,7 @@ export default function HojePage() {
           </p>
         )}
         <Button block onClick={confirmSlip} disabled={slipBusy || !slipWhat}>
-          Confirmar {slipQuest ? `${rulePoints(slipQuest) > 0 ? "+" : "−"}${Math.abs(rulePoints(slipQuest))}` : ""} para {members[slipWho]?.name ?? slipWho}
+          Confirmar {slipQuest ? `${rulePoints(slipQuest) > 0 ? "+" : "−"}${Math.abs(rulePoints(slipQuest))}` : ""} para {memberById.get(slipWho)?.name ?? slipWho}
         </Button>
         <p className="bq-caption text-center">Vai aparecer como “anotado por {session.user.name}”.</p>
       </Sheet>

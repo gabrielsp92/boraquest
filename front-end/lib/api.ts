@@ -75,3 +75,7 @@ export const listEntries = (period: EntryPeriod) => apiFetch<EntryList>(`/entrie
 export const createEntry = (ruleId: string, memberId: string) =>
   apiFetch<Entry>("/entries", "POST", { ruleId, memberId });
 export const deleteEntry = (id: string) => apiFetch<void>(`/entries/${encodeURIComponent(id)}`, "DELETE");
+
+export type GuildMember = { id: string; name: string };
+export type GuildMemberList = { members: GuildMember[] };
+export const listGuildMembers = () => apiFetch<GuildMemberList>("/guild/members");
