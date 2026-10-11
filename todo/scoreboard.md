@@ -1,6 +1,6 @@
 # Scoreboard: real weekly and monthly standings on Guilda, with tasks completed
 
-Status: Ready
+Status: Done
 Last updated: 2026-10-09
 Depends on: [`quest-entries.md`](./quest-entries.md) — needs the `entries` table, the `entry` domain package (`DateOnly`/`WeekStart`), the fixed `America/Sao_Paulo` timezone wiring in `main.go`, and the `EntryRepository`/`GuildRepository`/`Clock` interfaces it introduces. Do not start this spec until that one is implemented.
 

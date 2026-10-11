@@ -48,7 +48,7 @@ func TestAuthControllerLogin(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, controllers.LoginResponse{
 		Token: "tok",
-		User:  controllers.UserResponse{ID: "lia", Name: "Lia", Email: "lia@boraquest.dev"},
+		User:  controllers.UserResponse{ID: "lia", Name: "Lia", Email: "lia@boraquest.dev", AvatarKey: "lia"},
 	}, decode[controllers.LoginResponse](t, rec))
 	assert.Equal(t, "lia@boraquest.dev", auth.email)
 	assert.Equal(t, "secret", auth.password)

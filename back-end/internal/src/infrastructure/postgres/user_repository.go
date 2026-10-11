@@ -33,8 +33,8 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 // FindByEmail returns the user with that email.
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (user.User, error) {
 	var u user.User
-	err := r.pool.QueryRow(ctx, `SELECT id, name, email, password_hash FROM users WHERE email = $1`, email).
-		Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash)
+	err := r.pool.QueryRow(ctx, `SELECT id, name, email, password_hash, avatar_key FROM users WHERE email = $1`, email).
+		Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.AvatarKey)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return user.User{}, user.ErrNotFound
 	}
@@ -47,11 +47,24 @@ func (r *UserRepository) ListByIDs(ctx context.Context, ids []string) ([]user.Us
 	if len(ids) == 0 {
 		return []user.User{}, nil
 	}
-	rows, err := r.pool.Query(ctx, `SELECT id, name, email, password_hash FROM users WHERE id = ANY($1)`, ids)
+	rows, err := r.pool.Query(ctx, `SELECT id, name, email, password_hash, avatar_key FROM users WHERE id = ANY($1)`, ids)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, pgx.RowToStructByPos[user.User])
+}
+
+// UpdateAvatar sets userID's avatar_key and returns the updated user.
+func (r *UserRepository) UpdateAvatar(ctx context.Context, userID, avatarKey string) (user.User, error) {
+	var u user.User
+	err := r.pool.QueryRow(ctx,
+		`UPDATE users SET avatar_key = $1 WHERE id = $2 RETURNING id, name, email, password_hash, avatar_key`,
+		avatarKey, userID).
+		Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.AvatarKey)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return user.User{}, user.ErrNotFound
+	}
+	return u, err
 }
 
 // Create inserts u as a member of guildID, atomically. A taken email yields

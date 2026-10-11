@@ -2,7 +2,7 @@
 // Falls back to memory when storage is unavailable (private mode, blocked site data).
 import { useSyncExternalStore } from "react";
 
-export type SessionUser = { id: string; name: string; email: string };
+export type SessionUser = { id: string; name: string; email: string; avatarKey: string };
 export type Session = { token: string; user: SessionUser };
 
 const KEY = "bq.session";

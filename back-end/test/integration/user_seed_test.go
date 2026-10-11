@@ -53,7 +53,7 @@ func TestSeedUserThenLogin(t *testing.T) {
 	res := call(t, http.MethodPost, srv.URL+"/api/v1/auth/login", "", controllers.LoginRequest{Email: email, Password: "seeded-pass"})
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	session := decodeBody[controllers.LoginResponse](t, res)
-	assert.Equal(t, controllers.UserResponse{ID: created.User.ID, Name: "Seeded", Email: email}, session.User)
+	assert.Equal(t, controllers.UserResponse{ID: created.User.ID, Name: "Seeded", Email: email, AvatarKey: "lia"}, session.User)
 	res = call(t, http.MethodGet, srv.URL+"/api/v1/rules", session.Token, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode, "the seeded user is a guild member")
 
@@ -61,7 +61,11 @@ func TestSeedUserThenLogin(t *testing.T) {
 	again, err := newSeeder().Seed(ctx, in)
 	require.NoError(t, err)
 	assert.Equal(t, service.SeedAlreadyExists, again.Outcome)
-	assert.Equal(t, created.User, again.User, "existing user, including its password hash, is left untouched")
+	// created.User is the pre-insert in-memory value, which never carries avatar_key
+	// (it's a DB-default-only column); the row read back for "already exists" does.
+	wantUnchanged := created.User
+	wantUnchanged.AvatarKey = "lia"
+	assert.Equal(t, wantUnchanged, again.User, "existing user, including its password hash, is left untouched")
 }
 
 func TestSeedUserUnknownGuild(t *testing.T) {

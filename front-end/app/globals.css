@@ -136,10 +136,14 @@ body { margin: 0; background: var(--ground); color: var(--ink); font: 700 17px/2
   .bq-avatar--lg{width:72px;height:72px}
   .bq-avatar--xl{width:144px;height:144px}
   .bq-avatar--selected{box-shadow:0 0 0 4px var(--surface),0 0 0 8px var(--ink)}
+  .bq-avatar-btn{appearance:none;border:0;background:none;padding:0;cursor:pointer;display:inline-flex;border-radius:50%}
+  .bq-avatar-btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   .bq-avatar__crown{position:absolute;left:50%;top:-34%;width:50%;height:50%;transform:translateX(-50%) rotate(-8deg);color:var(--ink)}
   .bq-avatar__crown svg{fill:var(--accent)}
   .bq-screen--party .bq-avatar__crown svg{fill:var(--ground)}
   .bq-pick{appearance:none;border:0;background:none;padding:var(--space-2) 0;display:flex;flex-direction:column;align-items:center;gap:var(--space-2);flex:1;font:800 15px/20px var(--font-body);color:var(--ink);cursor:pointer;min-height:var(--tap-min)}
+  .bq-avatar-grid{display:flex;flex-wrap:wrap}
+  .bq-avatar-grid .bq-pick{flex:0 0 33.333%}
 
   /* Points */
   .bq-points{display:inline-block;min-width:56px;padding:4px 12px;border-radius:var(--radius-pill);font:800 18px/22px var(--font-display);text-align:center;flex:none;white-space:nowrap}

@@ -24,9 +24,10 @@ type LoginRequest struct {
 
 // UserResponse is the public JSON representation of a user.
 type UserResponse struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	AvatarKey string `json:"avatarKey"`
 }
 
 // LoginResponse is the JSON body returned by POST /auth/login.
@@ -60,6 +61,6 @@ func (h *AuthController) Login(c *gin.Context) {
 		_ = c.Error(err)
 		response.Error(c, http.StatusInternalServerError, "internal error")
 	default:
-		response.JSON(c, http.StatusOK, LoginResponse{Token: token, User: UserResponse{ID: u.ID, Name: u.Name, Email: u.Email}})
+		response.JSON(c, http.StatusOK, LoginResponse{Token: token, User: UserResponse{ID: u.ID, Name: u.Name, Email: u.Email, AvatarKey: u.AvatarKey}})
 	}
 }

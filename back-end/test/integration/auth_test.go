@@ -19,7 +19,7 @@ func TestLogin(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	body := decodeBody[controllers.LoginResponse](t, res)
 	assert.NotEmpty(t, body.Token)
-	assert.Equal(t, controllers.UserResponse{ID: "nena", Name: "Vó Nena", Email: "nena@boraquest.dev"}, body.User)
+	assert.Equal(t, controllers.UserResponse{ID: "nena", Name: "Vó Nena", Email: "nena@boraquest.dev", AvatarKey: "nena"}, body.User)
 }
 
 func TestLoginRejectsBadCredentials(t *testing.T) {

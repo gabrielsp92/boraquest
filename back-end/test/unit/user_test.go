@@ -43,6 +43,15 @@ func TestNormalizeEmail(t *testing.T) {
 	assert.Equal(t, "lia@boraquest.dev", user.NormalizeEmail("  LIA@Boraquest.dev\n"))
 }
 
+func TestValidAvatarKey(t *testing.T) {
+	for _, key := range user.AvatarKeys {
+		assert.True(t, user.ValidAvatarKey(key), key)
+	}
+	for _, key := range []string{"", "astolfo", "Lia", "LIA"} {
+		assert.False(t, user.ValidAvatarKey(key), key)
+	}
+}
+
 func TestValidatePassword(t *testing.T) {
 	assert.NoError(t, user.ValidatePassword(strings.Repeat("x", user.MinPasswordLen)))
 	assert.NoError(t, user.ValidatePassword(strings.Repeat("x", user.MaxPasswordLen)))

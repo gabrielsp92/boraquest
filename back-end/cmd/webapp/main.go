@@ -53,6 +53,7 @@ func main() {
 	healthService := service.NewHealthService(systemClock, version)
 	userRepository := postgres.NewUserRepository(pool)
 	authService := service.NewAuthService(userRepository, security.BcryptComparer{}, tokens)
+	profileService := service.NewProfileService(userRepository)
 	ruleRepository := postgres.NewRuleRepository(pool)
 	guildRepository := postgres.NewGuildRepository(pool)
 	ruleService := service.NewRuleService(
@@ -82,6 +83,7 @@ func main() {
 	router := routes.NewRouter(routes.Controllers{
 		Health:      controllers.NewHealthController(healthService),
 		Auth:        controllers.NewAuthController(authService),
+		Profile:     controllers.NewProfileController(profileService),
 		Rules:       controllers.NewRuleController(ruleService),
 		Prizes:      controllers.NewPrizeController(prizeService),
 		Entries:     controllers.NewEntryController(entryService),

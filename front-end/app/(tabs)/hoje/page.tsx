@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { AvatarPickerSheet } from "@/components/AvatarPickerSheet";
 import { Avatar, Banner, Button, Confetti, EmptyState, Points, QuestRow, ScoreHeader, Sheet, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { useSession } from "@/lib/auth";
 import { todayCaption } from "@/lib/date";
-import { DEFAULT_AVATAR } from "@/lib/avatars";
+import { avatarSrc, DEFAULT_AVATAR } from "@/lib/avatars";
 import {
   ApiError,
   createEntry,
@@ -36,6 +37,8 @@ export default function HojePage() {
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [justChecked, setJustChecked] = useState<string | null>(null);
+
+  const [avatarOpen, setAvatarOpen] = useState(false);
 
   const [slipOpen, setSlipOpen] = useState(false);
   const [slipWho, setSlipWho] = useState<string>("");
@@ -102,7 +105,13 @@ export default function HojePage() {
   const memberById = new Map(guildMembers.map((m) => [m.id, m]));
   const displayName = (id: string) => memberById.get(id)?.name ?? id;
   const meMember = memberById.get(me);
-  const meAvatarMember = meMember && { id: meMember.id, name: meMember.name, avatar: DEFAULT_AVATAR };
+  const meAvatarMember = meMember && { id: meMember.id, name: meMember.name, avatar: avatarSrc(session.user.avatarKey) };
+  const avatarButton = meAvatarMember && (
+    <button type="button" className="bq-avatar-btn" aria-label="Seu avatar" onClick={() => setAvatarOpen(true)}>
+      <Avatar member={meAvatarMember} />
+    </button>
+  );
+  const avatarSheet = avatarOpen && <AvatarPickerSheet session={session} onClose={() => setAvatarOpen(false)} />;
 
   const myQuests = rules.filter((r) => r.scoreType === "sum" && r.frequency === "daily");
   const negativeQuests = rules.filter((r) => r.scoreType === "decrease");
@@ -184,12 +193,13 @@ export default function HojePage() {
   if (myQuests.length === 0) {
     return (
       <>
-        <TopBar title={`Oi, ${session.user.name}!`} caption={todayCaption(todayIso)} right={meAvatarMember && <Avatar member={meAvatarMember} />} />
+        <TopBar title={`Oi, ${session.user.name}!`} caption={todayCaption(todayIso)} right={avatarButton} />
         <EmptyState icon="sun" title="Nenhuma quest ainda" text="Crie as primeiras quests da guilda para começar o jogo.">
           <Link href="/regras" className="bq-btn">
             Criar quests
           </Link>
         </EmptyState>
+        {avatarSheet}
       </>
     );
   }
@@ -199,7 +209,7 @@ export default function HojePage() {
 
   return (
     <>
-      <TopBar title={`Oi, ${session.user.name}!`} caption={todayCaption(todayIso)} right={meAvatarMember && <Avatar member={meAvatarMember} />} />
+      <TopBar title={`Oi, ${session.user.name}!`} caption={todayCaption(todayIso)} right={avatarButton} />
       <ScoreHeader score={score} label="pontos hoje" done={doneCount} total={myQuests.length} />
 
       {notice && (
@@ -307,6 +317,8 @@ export default function HojePage() {
         </Button>
         <p className="bq-caption text-center">Vai aparecer como “anotado por {session.user.name}”.</p>
       </Sheet>
+
+      {avatarSheet}
     </>
   );
 }

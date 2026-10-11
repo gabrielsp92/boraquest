@@ -39,6 +39,29 @@ paths:
           $ref: "#/components/responses/Error"
         "401":
           $ref: "#/components/responses/Error"
+  /me/avatar:
+    put:
+      summary: Set the caller's own avatar
+      operationId: updateMyAvatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAvatarRequest"
+      responses:
+        "200":
+          description: The updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
   /rules:
     get:
       summary: List the rules of the caller's guild, oldest first
@@ -399,7 +422,7 @@ components:
           $ref: "#/components/schemas/User"
     User:
       type: object
-      required: [id, name, email]
+      required: [id, name, email, avatarKey]
       properties:
         id:
           type: string
@@ -407,6 +430,16 @@ components:
           type: string
         email:
           type: string
+        avatarKey:
+          type: string
+          enum: [beto, caio, duda, lia, nena, tom]
+    UpdateAvatarRequest:
+      type: object
+      required: [avatarKey]
+      properties:
+        avatarKey:
+          type: string
+          enum: [beto, caio, duda, lia, nena, tom]
     RuleRequest:
       type: object
       required: [name, frequency, scoreType, score]

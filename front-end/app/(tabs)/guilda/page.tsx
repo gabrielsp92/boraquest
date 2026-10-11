@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Avatar, Badge, Bar, Button, EmptyState, PrizeCard, RankRow, Segmented, Sheet, TopBar } from "@/components/ui";
 import { getPrizes, getScoreboard, listGuildMembers, type GuildMember, type Prizes, type Standing } from "@/lib/api";
 import { useSession } from "@/lib/auth";
-import { DEFAULT_AVATAR } from "@/lib/avatars";
+import { avatarSrc, DEFAULT_AVATAR } from "@/lib/avatars";
 
 function completedLabel(n: number) {
   return n === 1 ? "1 tarefa concluída" : `${n} tarefas concluídas`;
@@ -81,7 +81,11 @@ export default function GuildaPage() {
   const top = currentStandings?.[0]?.points || 1;
 
   const memberById = new Map((guildMembers ?? []).map((m) => [m.id, m]));
-  const toMember = (id: string) => ({ id, name: memberById.get(id)?.name ?? id, avatar: DEFAULT_AVATAR });
+  const toMember = (id: string) => ({
+    id,
+    name: memberById.get(id)?.name ?? id,
+    avatar: id === callerId && session ? avatarSrc(session.user.avatarKey) : DEFAULT_AVATAR,
+  });
 
   return (
     <>

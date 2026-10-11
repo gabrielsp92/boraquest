@@ -1,6 +1,6 @@
 # Profile personalization: pick your avatar
 
-Status: Ready
+Status: Done
 Last updated: 2026-10-09
 Depends on: none (independent of `quest-entries.md`/`scoreboard.md` — touches a different part of the app; see Non-goals for the deliberate reason it doesn't touch the files those two are rewiring)
 

@@ -46,6 +46,9 @@ async function apiFetch<T>(path: string, method = "GET", body?: unknown): Promis
 
 export const login = (email: string, password: string) => apiFetch<Session>("/auth/login", "POST", { email, password });
 
+export const updateMyAvatar = (avatarKey: string) =>
+  apiFetch<{ id: string; name: string; email: string; avatarKey: string }>("/me/avatar", "PUT", { avatarKey });
+
 export const listRules = () => apiFetch<RuleList>("/rules");
 export const createRule = (input: RuleInput) => apiFetch<Rule>("/rules", "POST", input);
 export const updateRule = (id: string, input: RuleInput) => apiFetch<Rule>(`/rules/${encodeURIComponent(id)}`, "PUT", input);

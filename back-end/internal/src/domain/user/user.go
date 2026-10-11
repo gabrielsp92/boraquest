@@ -4,6 +4,7 @@ package user
 import (
 	"errors"
 	"net/mail"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -22,7 +23,16 @@ var (
 	ErrInvalidName        = errors.New("user: name must have 1 to 64 characters")
 	ErrInvalidEmail       = errors.New("user: invalid email")
 	ErrInvalidPassword    = errors.New("user: password must have 8 to 72 bytes")
+	ErrInvalidAvatar      = errors.New("user: invalid avatar")
 )
+
+// AvatarKeys are the platform's known avatar icons.
+var AvatarKeys = []string{"beto", "caio", "duda", "lia", "nena", "tom"}
+
+// ValidAvatarKey reports whether key is one of the platform's known avatars.
+func ValidAvatarKey(key string) bool {
+	return slices.Contains(AvatarKeys, key)
+}
 
 // User is a person who can sign in. PasswordHash is a bcrypt hash, never the plain password.
 type User struct {
@@ -30,6 +40,7 @@ type User struct {
 	Name         string
 	Email        string
 	PasswordHash string
+	AvatarKey    string
 }
 
 // New builds a validated User. The name is trimmed and the email normalized.

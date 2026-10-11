@@ -11,6 +11,7 @@ import (
 type Controllers struct {
 	Health     *controllers.HealthController
 	Auth       *controllers.AuthController
+	Profile    *controllers.ProfileController
 	Rules      *controllers.RuleController
 	Prizes     *controllers.PrizeController
 	Entries    *controllers.EntryController
@@ -28,6 +29,9 @@ func NewRouter(c Controllers) *gin.Engine {
 	v1 := r.Group("/api/v1")
 	v1.GET("/health", c.Health.Get)
 	v1.POST("/auth/login", c.Auth.Login)
+
+	me := v1.Group("/me", c.RequireAuth)
+	me.PUT("/avatar", c.Profile.UpdateAvatar)
 
 	rules := v1.Group("/rules", c.RequireAuth)
 	rules.GET("", c.Rules.List)

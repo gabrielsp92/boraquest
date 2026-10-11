@@ -177,7 +177,7 @@ func TestUserRepositoryFindByEmail(t *testing.T) {
 func TestUserRepositoryCreate(t *testing.T) {
 	ctx := context.Background()
 	users := postgres.NewUserRepository(pool)
-	ana := user.User{ID: "ana-create", Name: "Ana", Email: "ana-create@boraquest.dev", PasswordHash: "hash"}
+	ana := user.User{ID: "ana-create", Name: "Ana", Email: "ana-create@boraquest.dev", PasswordHash: "hash", AvatarKey: "lia"}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM users WHERE id LIKE 'ana-create%'`) })
 
 	require.NoError(t, users.Create(ctx, ana, "familia"))
@@ -214,6 +214,23 @@ func TestUserRepositoryCreateIsAtomic(t *testing.T) {
 	err = users.Create(ctx, ana, "\xff")
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, guild.ErrNotFound)
+}
+
+func TestUserRepositoryUpdateAvatar(t *testing.T) {
+	ctx := context.Background()
+	users := postgres.NewUserRepository(pool)
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `UPDATE users SET avatar_key = 'caio' WHERE id = 'caio'`) })
+
+	got, err := users.UpdateAvatar(ctx, "caio", "duda")
+	require.NoError(t, err)
+	assert.Equal(t, "duda", got.AvatarKey)
+
+	found, err := users.FindByEmail(ctx, "caio@boraquest.dev")
+	require.NoError(t, err)
+	assert.Equal(t, "duda", found.AvatarKey, "the update is persisted")
+
+	_, err = users.UpdateAvatar(ctx, "ghost-user", "duda")
+	assert.ErrorIs(t, err, user.ErrNotFound)
 }
 
 func TestUserRepositoryListByIDs(t *testing.T) {

@@ -39,7 +39,7 @@ type fakeIssuer struct {
 
 func (f fakeIssuer) Issue(userID string) (string, error) { return f.token + ":" + userID, f.err }
 
-var lia = user.User{ID: "lia", Name: "Lia", Email: "lia@boraquest.dev", PasswordHash: "hash"}
+var lia = user.User{ID: "lia", Name: "Lia", Email: "lia@boraquest.dev", PasswordHash: "hash", AvatarKey: "lia"}
 
 func TestAuthServiceLogin(t *testing.T) {
 	users := &fakeUsers{user: lia}

@@ -90,8 +90,9 @@ func newServer(t *testing.T) *httptest.Server {
 	systemClock := clock.SystemClock{}
 	tokens := security.NewJWT(testJWTSecret, time.Hour, systemClock)
 	router := routes.NewRouter(routes.Controllers{
-		Health: controllers.NewHealthController(service.NewHealthService(systemClock, "test")),
-		Auth:   controllers.NewAuthController(service.NewAuthService(postgres.NewUserRepository(pool), security.BcryptComparer{}, tokens)),
+		Health:  controllers.NewHealthController(service.NewHealthService(systemClock, "test")),
+		Auth:    controllers.NewAuthController(service.NewAuthService(postgres.NewUserRepository(pool), security.BcryptComparer{}, tokens)),
+		Profile: controllers.NewProfileController(service.NewProfileService(postgres.NewUserRepository(pool))),
 		Rules: controllers.NewRuleController(service.NewRuleService(
 			postgres.NewRuleRepository(pool),
 			postgres.NewGuildRepository(pool),

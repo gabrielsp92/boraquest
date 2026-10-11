@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AvatarPickerSheet } from "@/components/AvatarPickerSheet";
 import { Button, EmptyState, Field, QuestRow, Segmented, Sheet, Stepper, TopBar } from "@/components/ui";
 import {
   ApiError,
@@ -17,7 +18,7 @@ import {
   type RuleList,
   type ScoreType,
 } from "@/lib/api";
-import { clearSession } from "@/lib/auth";
+import { clearSession, useSession } from "@/lib/auth";
 
 const frequencyLabel: Record<RuleFrequency, string> = { daily: "Diária", weekly: "Semanal" };
 
@@ -30,6 +31,10 @@ function errorMessage(err: unknown, limit: number) {
 }
 
 export default function RegrasPage() {
+  const session = useSession();
+
+  const [avatarOpen, setAvatarOpen] = useState(false);
+
   const [rules, setRules] = useState<Rule[] | null>(null);
   const [limit, setLimit] = useState(40);
   const [loadError, setLoadError] = useState(false);
@@ -217,9 +222,14 @@ export default function RegrasPage() {
         title="Regras"
         caption="As regras da guilda"
         right={
-          <Button variant="small" onClick={clearSession}>
-            Sair
-          </Button>
+          <div className="bq-row" style={{ gap: 8 }}>
+            <Button variant="small" onClick={() => setAvatarOpen(true)}>
+              Seu avatar
+            </Button>
+            <Button variant="small" onClick={clearSession}>
+              Sair
+            </Button>
+          </div>
         }
       />
 
@@ -334,6 +344,8 @@ export default function RegrasPage() {
           </Button>
         )}
       </Sheet>
+
+      {avatarOpen && session && <AvatarPickerSheet session={session} onClose={() => setAvatarOpen(false)} />}
     </>
   );
 }
