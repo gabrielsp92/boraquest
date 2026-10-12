@@ -1,0 +1,64 @@
+# Pull-request checks: lint + test whichever side the PR touches. Deploys
+# nothing. Jobs for an untouched side are skipped (which counts as passing for
+# required status checks).
+name: CI
+
+on:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      front-end: ${{ steps.filter.outputs.front-end }}
+      back-end: ${{ steps.filter.outputs.back-end }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            front-end:
+              - 'front-end/**'
+            back-end:
+              - 'back-end/**'
+
+  front-end:
+    needs: changes
+    if: needs.changes.outputs.front-end == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: front-end
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: front-end/.nvmrc
+          cache: npm
+          cache-dependency-path: front-end/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  back-end:
+    needs: changes
+    if: needs.changes.outputs.back-end == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: back-end
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: back-end/go.mod
+          cache-dependency-path: back-end/go.sum
+      - run: make lint
+      # Integration tests start their own Postgres via testcontainers (Docker is preinstalled).
+      - run: make cover

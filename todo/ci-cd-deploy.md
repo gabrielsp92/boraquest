@@ -1,7 +1,7 @@
 # CI/CD: deploy front-end to Vercel, back-end to Fly.io, migrate Supabase
 
-Status: Ready
-Last updated: 2026-10-09
+Status: Done (code) — the one-time Prerequisites and the Test plan's manual checks are still to do
+Last updated: 2026-10-12
 Depends on: none
 
 ## Summary
@@ -135,7 +135,7 @@ No domain types change. Infrastructure-level additions only:
 
 ### Front-end: Vercel
 - **New `front-end/vercel.json`**: `{ "github": { "enabled": false } }` — disables Vercel's own Git-push auto-deploy so the GitHub Actions workflow is the only thing that deploys. Without this, every push would trigger two independent deploys (Vercel's native one and the Actions one), racing each other.
-- **Vercel project settings** (one-time, dashboard, see Prerequisites): Root Directory = `front-end`; Framework Preset = Next.js (auto-detected); Production environment variable `BACKEND_URL` = the Fly app's public URL.
+- **Vercel project settings** (one-time, dashboard, see Prerequisites): Root Directory left empty (the CLI runs from `front-end/`); Framework Preset = Next.js (auto-detected); Production environment variable `BACKEND_URL` = the Fly app's public URL.
 - **CLI flow**, per the official Vercel guide (`https://vercel.com/kb/guide/how-can-i-use-github-actions-with-vercel`): `vercel pull` → `vercel build` → `vercel deploy --prebuilt`, all run with `working-directory: front-end` and `--token=${{ secrets.VERCEL_TOKEN }}`, with `VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` set as job-level env vars from secrets. `vercel pull --environment=production` is what makes the Production `BACKEND_URL` env var available to the subsequent `vercel build` (this is how the build-time env var requirement from `next.config.ts` gets satisfied in CI — see Current state). Using `--prebuilt` means Vercel doesn't rebuild server-side; the GitHub Actions runner does the `next build`, matching Next's own guidance that `rewrites()` resolves `process.env.BACKEND_URL` wherever the build runs.
 
 ### CI (pull requests)
@@ -196,11 +196,11 @@ No HTTP API changes. The only new "contract" is the `cmd/migrate` CLI:
 ### Prerequisites (manual, one-time, outside CI — do these before the first workflow run)
 1. Create the Supabase project. Copy its **direct connection** string (port 5432, `sslmode=require`), not the pooled one.
 2. Create the Fly app (`fly apps create <chosen-name>`) in the same region as `fly.toml`'s `primary_region`. Update `fly.toml`'s `app` field to match.
-3. Run `fly secrets set DATABASE_URL="<supabase direct url>" JWT_SECRET="<a new, strong, production-only secret>"` against the new Fly app. Never reuse the Makefile's dev default (`boraquest-dev-secret`) or commit this value anywhere.
+3. Run `fly secrets set DATABASE_URL="<supabase direct url>" JWT_SECRET="<a new, strong, production-only secret>" CLOUDINARY_CLOUD_NAME="..." CLOUDINARY_API_KEY="..." CLOUDINARY_API_SECRET="..."` against the new Fly app (the API refuses to start without all three `CLOUDINARY_*`, added by the quest-photo-uploads spec). Never reuse the Makefile's dev default (`boraquest-dev-secret`) or commit this value anywhere.
 4. Create a Fly deploy token (`fly tokens create deploy -x 999999h` per Fly's own guide) and store it as the GitHub repo secret `FLY_API_TOKEN`.
 5. Store the Supabase direct connection string as the GitHub repo secret `SUPABASE_DB_URL`.
-6. From inside `front-end/`, run `vercel link` once (requires a Vercel account/login) to create the Vercel project and generate `.vercel/project.json`. Read `orgId`/`projectId` from that file and store them as GitHub repo secrets `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`. Create a Vercel API token and store it as `VERCEL_TOKEN`.
-7. In the Vercel project's dashboard: set Root Directory to `front-end`; add a Production environment variable `BACKEND_URL` = `https://<fly-app-name>.fly.dev`.
+6. From inside `front-end/`, run `vercel link` once (this links the `front-end/` folder itself as the project root) (requires a Vercel account/login) to create the Vercel project and generate `.vercel/project.json`. Read `orgId`/`projectId` from that file and store them as GitHub repo secrets `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`. Create a Vercel API token and store it as `VERCEL_TOKEN`.
+7. In the Vercel project's dashboard: leave Root Directory **empty** (the workflow runs the CLI from inside `front-end/`; setting it to `front-end` too makes the CLI look for `front-end/front-end`); add a Production environment variable `BACKEND_URL` = `https://<fly-app-name>.fly.dev`.
 
 ### Steps (can start once prerequisites 1-3 are done; 4-7 are needed before the workflows can run green)
 1. `back-end/cmd/migrate/main.go`: new file, the standalone migration CLI described in Architecture. Done when `DATABASE_URL=<local docker-compose url> go run ./cmd/migrate` applies migrations against the local Postgres with no error.
@@ -243,6 +243,18 @@ No automated test runner changes beyond what already exists (`make test`/`make c
 - Supabase Pro upgrade to remove the free-tier pause risk — deferred per Decision log #6; revisit if the pause becomes a recurring problem.
 - Structured logging/alerting/monitoring beyond GitHub Actions' pass/fail and Fly's/Supabase's own dashboards.
 - Real user sign-up / replacing the dev-seeded users — already tracked as a known gap in `front-end/README.md:44`, unrelated to this spec.
+
+## Implementation notes (2026-10-12)
+Where the build differs from the plan above, and why:
+- **Local dev keeps migrating.** Removing migrate-on-boot would have broken the Goal "local dev unchanged", so `make run` and `make dev` (Air's build `cmd` in `.air.toml`, which `/run-all` also uses) run `cmd/migrate` against `DATABASE_URL`, else the docker-compose DB, before starting the API. `make migrate` itself has no fallback: it fails if `DATABASE_URL` is unset.
+- **`cmd/seeduser` still migrates** before seeding, as before. It's an operational CLI, not the API, so Business rule #1's concern (the app migrating on boot) doesn't apply.
+- **`cmd/migrate` logs one line** (`database is up to date`) instead of each applied version. `postgres.Migrate` returns only an error, and changing it isn't worth it for this spec.
+- **Fly secrets also need `CLOUDINARY_CLOUD_NAME`/`_API_KEY`/`_API_SECRET`.** These became required at boot after this spec was written (Prerequisite 3 updated).
+- **`front-end/vercel.json` uses `{"git": {"deploymentEnabled": false}}`**, the current form of the deprecated `github.enabled` key.
+- **`ci.yml` path filtering is per job, via `dorny/paths-filter`.** Workflow-level `paths:` can't filter jobs separately, and skipped jobs still count as passing for required checks.
+- **The front-end deploy doesn't run a separate `npm run build`.** `vercel build` runs `next build` (with the Production env pulled), so a build or type error still stops the deploy before `vercel deploy`.
+- **Versions:** runtime image is `alpine:3.22` (3.20 is past end of life); actions are `checkout@v7`, `setup-node@v7`, `setup-go@v7`, `dorny/paths-filter@v4`, `superfly/flyctl-actions/setup-flyctl@1.5` (latest release, not `@master`).
+- **`fly.toml` sets `GIN_MODE=release`**, so production doesn't run Gin in debug mode.
 
 ## Open questions
 None.

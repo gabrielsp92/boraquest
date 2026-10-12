@@ -1,0 +1,55 @@
+# Push to main touching back-end/: test → migrate production DB → deploy to Fly.
+# A failed migration stops the run before deploy, so the previous release keeps serving.
+# Migrations must stay backward-compatible with the running release (expand/contract).
+name: Deploy back-end
+
+on:
+  push:
+    branches: [main]
+    paths: ['back-end/**']
+
+concurrency:
+  group: deploy-backend-production
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: back-end
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: back-end/go.mod
+          cache-dependency-path: back-end/go.sum
+      - run: make lint
+      - run: make cover
+
+  migrate:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: back-end/go.mod
+          cache-dependency-path: back-end/go.sum
+      - run: go run ./cmd/migrate
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: vars
+        run: echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+      # The short SHA becomes main.version, so GET /api/v1/health shows which commit is live.
+      - run: flyctl deploy --remote-only --wait-timeout 600 --build-arg VERSION=${{ steps.vars.outputs.sha_short }}
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

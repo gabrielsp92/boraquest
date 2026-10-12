@@ -51,9 +51,6 @@ func main() {
 		log.Fatalf("connect to database: %v", err)
 	}
 	defer pool.Close()
-	if err := postgres.Migrate(ctx, pool); err != nil {
-		log.Fatalf("migrate database: %v", err)
-	}
 	tokens := security.NewJWT(jwtSecret, tokenTTL, systemClock)
 	cloudinaryClient, err := cld.NewFromParams(cloudName, cloudKey, cloudSecret)
 	if err != nil {

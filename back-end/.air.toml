@@ -3,7 +3,8 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o ./tmp/webapp ./cmd/webapp"
+  # The API never migrates itself, so migrate first (DATABASE_URL, else the docker-compose DB).
+  cmd = "go build -o ./tmp/webapp ./cmd/webapp && DATABASE_URL=\"${DATABASE_URL:-postgres://boraquest:boraquest@localhost:5432/boraquest?sslmode=disable}\" go run ./cmd/migrate"
   entrypoint = ["./tmp/webapp"]
   include_ext = ["go", "sql"]
   exclude_dir = ["tmp", "test", "api", "scripts"]

@@ -2,7 +2,7 @@
 
 | Spec | Status | Last updated | Depends on |
 | --- | --- | --- | --- |
-| [CI/CD: deploy front-end to Vercel, back-end to Fly.io, migrate Supabase](./ci-cd-deploy.md) | Ready | 2026-10-09 | none |
+| [CI/CD: deploy front-end to Vercel, back-end to Fly.io, migrate Supabase](./ci-cd-deploy.md) | Done (code; setup pending) | 2026-10-12 | none |
 | [Quest entries: mark quests done, log slips, and real scores on Hoje and Semana](./quest-entries.md) | Ready | 2026-10-09 | none |
 | [Scoreboard: real weekly and monthly standings on Guilda, with tasks completed](./scoreboard.md) | Ready | 2026-10-09 | quest-entries |
 | [Profile personalization: pick your avatar](./profile-avatar.md) | Ready | 2026-10-09 | none |
