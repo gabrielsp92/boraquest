@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/entry"
@@ -37,6 +38,16 @@ type EntryRepository interface {
 	// occurredOn falls in [from, to], their total points and count of sum-type entries.
 	// A member with zero entries in range is simply absent from the result.
 	SumByGuild(ctx context.Context, guildID string, from, to time.Time) ([]MemberTotal, error)
+	// SetPhoto stores the photo of entry id only if it has none yet. Returns
+	// entry.ErrNotFound when id doesn't exist in the guild, or entry.ErrPhotoExists
+	// when a photo was already set (including a lost concurrent race).
+	SetPhoto(ctx context.Context, guildID, id, photoURL, photoPublicID string) (entry.Entry, error)
+}
+
+// PhotoUploader stores image bytes in external storage under guildID/entryID and
+// returns the public delivery URL plus the storage-side id.
+type PhotoUploader interface {
+	Upload(ctx context.Context, guildID, entryID string, file io.Reader) (url, storedID string, err error)
 }
 
 // EntryService manages entries logged by members of the caller's guild.
@@ -47,12 +58,13 @@ type EntryService struct {
 	ids     IDGenerator
 	clock   Clock
 	loc     *time.Location
+	photos  PhotoUploader
 }
 
 // NewEntryService builds an EntryService. loc fixes the day/week boundary every
 // caller shares, regardless of each device's own timezone (see package docs).
-func NewEntryService(entries EntryRepository, rules RuleRepository, guilds GuildRepository, ids IDGenerator, clock Clock, loc *time.Location) *EntryService {
-	return &EntryService{entries: entries, rules: rules, guilds: guilds, ids: ids, clock: clock, loc: loc}
+func NewEntryService(entries EntryRepository, rules RuleRepository, guilds GuildRepository, ids IDGenerator, clock Clock, loc *time.Location, photos PhotoUploader) *EntryService {
+	return &EntryService{entries: entries, rules: rules, guilds: guilds, ids: ids, clock: clock, loc: loc, photos: photos}
 }
 
 // Create logs an entry on behalf of callerID, scoped to its guild.
@@ -117,4 +129,28 @@ func (s *EntryService) List(ctx context.Context, callerID string, period EntryPe
 	}
 	entries, err = s.entries.ListByMember(ctx, g.ID, callerID, from, to)
 	return entries, from, to, today, err
+}
+
+// AttachPhoto uploads file as the proof photo of callerID's entry id. contentType
+// must be the sniffed type of file's bytes, size its length.
+func (s *EntryService) AttachPhoto(ctx context.Context, callerID, id, contentType string, size int64, file io.Reader) (entry.Entry, error) {
+	g, err := s.guilds.FindByMember(ctx, callerID)
+	if err != nil {
+		return entry.Entry{}, err
+	}
+	e, err := s.entries.Get(ctx, g.ID, id)
+	if err != nil {
+		return entry.Entry{}, err // entry.ErrNotFound
+	}
+	if err := e.ValidatePhotoAttach(callerID, s.clock.Now().In(s.loc)); err != nil {
+		return entry.Entry{}, err
+	}
+	if !entry.ValidPhotoFile(contentType, size) {
+		return entry.Entry{}, entry.ErrInvalidPhoto
+	}
+	url, storedID, err := s.photos.Upload(ctx, g.ID, e.ID, file)
+	if err != nil {
+		return entry.Entry{}, err
+	}
+	return s.entries.SetPhoto(ctx, g.ID, e.ID, url, storedID)
 }

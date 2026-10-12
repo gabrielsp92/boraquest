@@ -221,14 +221,36 @@ export function Bar({ percent }: { percent: number }) {
 }
 
 /* ---------- Day card ---------- */
-export function Thumb({ src }: { src?: string }) {
+export function Thumb({ src, onClick }: { src?: string; onClick?: () => void }) {
+  const content = src ? <img src={src} alt="" /> : <Icon name="image" />;
+  if (onClick) {
+    return (
+      <button type="button" className="bq-thumb" aria-label="Foto de prova" onClick={onClick}>
+        {content}
+      </button>
+    );
+  }
   return (
     <span className="bq-thumb" role="img" aria-label="Foto de prova">
-      {src ? <img src={src} alt="" /> : <Icon name="image" />}
+      {content}
     </span>
   );
 }
-export function DayCard({ title, gained, lost, photos = 0, children }: { title: string; gained: number; lost: number; photos?: number; children: ReactNode }) {
+export function DayCard({
+  title,
+  gained,
+  lost,
+  photos = [],
+  onPhotoClick,
+  children,
+}: {
+  title: string;
+  gained: number;
+  lost: number;
+  photos?: { id: string; url: string }[];
+  onPhotoClick?: (url: string) => void;
+  children: ReactNode;
+}) {
   return (
     <div className="bq-day">
       <div className="bq-row">
@@ -237,10 +259,10 @@ export function DayCard({ title, gained, lost, photos = 0, children }: { title: 
         {lost < 0 && <Points value={lost} />}
       </div>
       <div className="bq-day__chips">{children}</div>
-      {photos > 0 && (
+      {photos.length > 0 && (
         <div className="bq-thumbs">
-          {Array.from({ length: photos }, (_, i) => (
-            <Thumb key={i} />
+          {photos.map((p) => (
+            <Thumb key={p.id} src={p.url} onClick={onPhotoClick && (() => onPhotoClick(p.url))} />
           ))}
         </div>
       )}

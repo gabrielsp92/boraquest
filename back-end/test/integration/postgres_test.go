@@ -106,6 +106,9 @@ func TestRepositoriesSurfaceDatabaseErrors(t *testing.T) {
 	assert.Error(t, err)
 	_, err = entries.SumByGuild(ctx, "g1", time.Now(), time.Now())
 	assert.Error(t, err)
+	_, err = entries.SetPhoto(ctx, "g1", "e1", "u", "p")
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, entry.ErrNotFound)
 }
 
 func TestEntryRepositoryCreateStatementErrors(t *testing.T) {
@@ -267,4 +270,34 @@ func TestGuildRepository(t *testing.T) {
 	assert.ErrorIs(t, err, guild.ErrNotFound)
 	_, err = guilds.FindByMember(ctx, outsiderID)
 	assert.ErrorIs(t, err, guild.ErrNotMember)
+}
+
+func TestEntryRepositorySetPhoto(t *testing.T) {
+	resetEntries(t)
+	ctx := context.Background()
+	entries := postgres.NewEntryRepository(pool)
+	now := time.Now().UTC()
+	e, err := entry.New("e1", "familia", "r1", "Água", rule.ScoreTypeSum, 10, "lia", "lia", rule.FrequencyDaily, now)
+	require.NoError(t, err)
+	require.NoError(t, entries.Create(ctx, e))
+
+	got, err := entries.SetPhoto(ctx, "familia", "e1", "https://cdn/e1.jpg", "pid-1")
+	require.NoError(t, err)
+	assert.Equal(t, "https://cdn/e1.jpg", got.PhotoURL)
+	assert.Equal(t, "pid-1", got.PhotoPublicID)
+	assert.Equal(t, "e1", got.ID)
+
+	// Set at most once: a second write loses and leaves the first photo in place.
+	_, err = entries.SetPhoto(ctx, "familia", "e1", "https://cdn/other.jpg", "pid-2")
+	assert.ErrorIs(t, err, entry.ErrPhotoExists)
+	stored, err := entries.Get(ctx, "familia", "e1")
+	require.NoError(t, err)
+	assert.Equal(t, "https://cdn/e1.jpg", stored.PhotoURL)
+	assert.Equal(t, "pid-1", stored.PhotoPublicID)
+
+	// Unknown id, or another guild's entry, is not found.
+	_, err = entries.SetPhoto(ctx, "familia", "ghost", "u", "p")
+	assert.ErrorIs(t, err, entry.ErrNotFound)
+	_, err = entries.SetPhoto(ctx, "other-guild", "e1", "u", "p")
+	assert.ErrorIs(t, err, entry.ErrNotFound)
 }

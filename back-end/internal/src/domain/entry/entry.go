@@ -4,6 +4,7 @@ package entry
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/rule"
@@ -17,7 +18,18 @@ var (
 	ErrNotOwn           = errors.New("entry: you can only remove your own entry")
 	ErrNotRemovable     = errors.New("entry: only completed quests can be removed")
 	ErrNotToday         = errors.New("entry: you can only remove today's entry")
+	ErrPhotoNotAllowed  = errors.New("entry: only a completed quest can have a photo")
+	ErrPhotoNotOwn      = errors.New("entry: you can only add a photo to your own entry")
+	ErrPhotoTooLate     = errors.New("entry: you can only add a photo on the same day")
+	ErrPhotoExists      = errors.New("entry: this entry already has a photo")
+	ErrInvalidPhoto     = errors.New("entry: image must be jpg, png or webp, up to 8MB")
 )
+
+// MaxPhotoBytes is the largest photo an entry accepts.
+const MaxPhotoBytes = 8 << 20
+
+// AllowedPhotoTypes lists the image content types an entry photo may have.
+var AllowedPhotoTypes = []string{"image/jpeg", "image/png", "image/webp"}
 
 // Entry records that a rule was scored for a member on a given day.
 type Entry struct {
@@ -32,6 +44,10 @@ type Entry struct {
 	OccurredOn time.Time      // date-only (UTC midnight), the calendar day it happened
 	PeriodKey  time.Time      // date-only; OccurredOn for a daily rule, that week's Monday for a weekly rule
 	CreatedAt  time.Time
+	// PhotoURL is the delivery URL of the proof photo; empty when there is none.
+	PhotoURL string
+	// PhotoPublicID is the storage-side id of the photo; empty when there is none.
+	PhotoPublicID string
 }
 
 // New builds a validated Entry. now must already be the caller's current wall-clock
@@ -67,4 +83,27 @@ func DateOnly(now time.Time) time.Time {
 func WeekStart(d time.Time) time.Time {
 	offset := (int(d.Weekday()) + 6) % 7 // Monday -> 0 ... Sunday -> 6
 	return d.AddDate(0, 0, -offset)
+}
+
+// ValidatePhotoAttach reports whether callerID may attach a photo to e at now
+// (already converted into the guild's timezone). It never mutates e.
+func (e Entry) ValidatePhotoAttach(callerID string, now time.Time) error {
+	if e.ScoreType != rule.ScoreTypeSum {
+		return ErrPhotoNotAllowed
+	}
+	if e.MemberID != callerID {
+		return ErrPhotoNotOwn
+	}
+	if e.PhotoURL != "" {
+		return ErrPhotoExists
+	}
+	if !e.OccurredOn.Equal(DateOnly(now)) {
+		return ErrPhotoTooLate
+	}
+	return nil
+}
+
+// ValidPhotoFile reports whether contentType and size are acceptable for a photo.
+func ValidPhotoFile(contentType string, size int64) bool {
+	return slices.Contains(AllowedPhotoTypes, contentType) && size > 0 && size <= MaxPhotoBytes
 }

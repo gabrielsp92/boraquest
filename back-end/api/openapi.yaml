@@ -329,6 +329,64 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /entries/{id}/photo:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: Attach a proof photo to the caller's own sum-type entry, same day only, once
+      description: >-
+        The file is stored in Cloudinary by the API. Its type is detected from the
+        bytes, not from the client's Content-Type.
+      operationId: uploadEntryPhoto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo:
+                  type: string
+                  format: binary
+                  description: jpg, png or webp, up to 8 MB
+      responses:
+        "200":
+          description: The entry, now with its photoUrl
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          description: No photo file, or not a jpg/png/webp up to 8 MB
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          description: >-
+            Caller belongs to no guild, the entry is a slip (decrease), belongs to
+            another member, or is not from today
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: The entry already has a photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /guild/members:
     get:
       summary: List the members of the caller's guild
@@ -523,7 +581,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/EntryRequest"
         - type: object
-          required: [id, ruleName, scoreType, points, loggedBy, occurredOn, createdAt]
+          required: [id, ruleName, scoreType, points, loggedBy, occurredOn, createdAt, photoUrl]
           properties:
             id:
               type: string
@@ -546,6 +604,9 @@ components:
             createdAt:
               type: string
               format: date-time
+            photoUrl:
+              type: string
+              description: Delivery URL of the proof photo; empty string when there is none
     EntryList:
       type: object
       required: [entries, from, to, today]

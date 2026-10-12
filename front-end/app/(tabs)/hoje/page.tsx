@@ -15,7 +15,10 @@ import {
   listEntries,
   listGuildMembers,
   listRules,
+  PHOTO_MAX_BYTES,
+  PHOTO_TYPES,
   rulePoints,
+  uploadEntryPhoto,
   type Entry,
   type EntryList,
   type GuildMember,
@@ -35,8 +38,9 @@ export default function HojePage() {
 
   const [busyRuleIds, setBusyRuleIds] = useState<Set<string>>(new Set());
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
-  const [photos, setPhotos] = useState<Record<string, string>>({});
   const [justChecked, setJustChecked] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const [avatarOpen, setAvatarOpen] = useState(false);
 
@@ -137,6 +141,7 @@ export default function HojePage() {
       } else {
         const created = await createEntry(rule.id, me);
         setEntries((es) => [...(es ?? []), created]);
+        setPhotoError(null);
         setJustChecked(created.id);
       }
     } catch (err) {
@@ -156,12 +161,31 @@ export default function HojePage() {
     }
   }
 
-  function attachPhoto(file: File | undefined) {
-    if (file && justChecked) {
-      const url = URL.createObjectURL(file);
-      setPhotos((p) => ({ ...p, [justChecked]: url }));
-    }
+  function closePhotoSheet() {
+    if (photoBusy) return;
     setJustChecked(null);
+    setPhotoError(null);
+  }
+
+  // The entry already exists and counts; a failed upload only leaves it without a photo.
+  async function attachPhoto(file: File | undefined) {
+    const entryId = justChecked;
+    if (!file || !entryId) return;
+    if (!PHOTO_TYPES.includes(file.type) || file.size > PHOTO_MAX_BYTES) {
+      setPhotoError("Essa imagem não dá. Use jpg, png ou webp até 8 MB.");
+      return;
+    }
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      const updated = await uploadEntryPhoto(entryId, file);
+      setEntries((es) => (es ?? []).map((e) => (e.id === updated.id ? updated : e)));
+      setJustChecked(null);
+    } catch {
+      setPhotoError("Não deu para enviar a foto. Tenta de novo ou pula.");
+    } finally {
+      setPhotoBusy(false);
+    }
   }
 
   async function confirmSlip() {
@@ -229,7 +253,6 @@ export default function HojePage() {
                 name={rule.name}
                 points={rulePoints(rule)}
                 kind={entry ? "done" : "todo"}
-                meta={entry && photos[entry.id] ? "com foto" : undefined}
                 onClick={() => toggle(rule)}
                 pressed={!!entry}
                 disabled={busyRuleIds.has(rule.id)}
@@ -257,7 +280,7 @@ export default function HojePage() {
 
       {/* Optional photo after checking a quest */}
       {checked && <Confetti fixed />}
-      <Sheet open={!!checked} onClose={() => setJustChecked(null)}>
+      <Sheet open={!!checked} onClose={closePhotoSheet}>
         <div className="bq-stack bq-center">
           <span className="bq-burst">
             <Icon name="check" size={40} />
@@ -266,15 +289,32 @@ export default function HojePage() {
           {checked && <Points value={checked.points} />}
           <p className="bq-text">Quer guardar uma foto de prova? É opcional.</p>
         </div>
+        {photoError && (
+          <p className="bq-note" role="alert">
+            {photoError}
+          </p>
+        )}
         <div className="bq-stack">
-          <Button block icon="camera" onClick={() => fileInput.current?.click()}>
-            Adicionar foto
+          <Button block icon="camera" onClick={() => fileInput.current?.click()} disabled={photoBusy}>
+            {photoBusy ? "Enviando foto…" : "Adicionar foto"}
           </Button>
-          <Button variant="plain" block onClick={() => setJustChecked(null)}>
+          <Button variant="plain" block onClick={closePhotoSheet} disabled={photoBusy}>
             Pular
           </Button>
         </div>
-        <input ref={fileInput} type="file" accept="image/*" capture="environment" hidden onChange={(e) => attachPhoto(e.target.files?.[0])} />
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            // Cleared so picking the same file again after an error still fires onChange.
+            e.target.value = "";
+            attachPhoto(file);
+          }}
+        />
       </Sheet>
 
       {/* Log a slip for anyone in the guild */}

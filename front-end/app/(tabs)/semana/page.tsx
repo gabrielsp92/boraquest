@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Badge, Button, DayCard, EmptyState, RankRow, ScoreHeader, Segmented, TopBar } from "@/components/ui";
+import { Badge, Button, DayCard, EmptyState, RankRow, ScoreHeader, Segmented, Sheet, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { members, pastWeeks } from "@/lib/data";
 import { listEntries, listGuildMembers, type Entry, type EntryList, type GuildMember } from "@/lib/api";
@@ -17,6 +17,7 @@ export default function SemanaPage() {
   const [todayIso, setTodayIso] = useState<string | null>(null);
   const [guildMembers, setGuildMembers] = useState<GuildMember[] | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
 
   function applyData(list: EntryList) {
     setEntries(list.entries);
@@ -97,8 +98,16 @@ export default function SemanaPage() {
                 const dayEntries = byDay.get(day) ?? [];
                 const gained = dayEntries.filter((e) => e.points > 0).reduce((n, e) => n + e.points, 0);
                 const lost = dayEntries.filter((e) => e.points < 0).reduce((n, e) => n + e.points, 0);
+                const photos = dayEntries.filter((e) => e.scoreType === "sum" && e.photoUrl).map((e) => ({ id: e.id, url: e.photoUrl }));
                 return (
-                  <DayCard key={day} title={dayLabel(day, day === todayIso)} gained={gained} lost={lost} photos={0}>
+                  <DayCard
+                    key={day}
+                    title={dayLabel(day, day === todayIso)}
+                    gained={gained}
+                    lost={lost}
+                    photos={photos}
+                    onPhotoClick={setViewingPhoto}
+                  >
                     {dayEntries.map((e) =>
                       e.scoreType === "sum" ? (
                         <Badge key={e.id} kind="gain" icon="check">
@@ -133,6 +142,11 @@ export default function SemanaPage() {
             ))}
           </div>
         ))}
+
+      <Sheet open={!!viewingPhoto} onClose={() => setViewingPhoto(null)}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary already serves a size-capped variant */}
+        {viewingPhoto && <img className="bq-photo-full" src={viewingPhoto} alt="" />}
+      </Sheet>
     </>
   );
 }

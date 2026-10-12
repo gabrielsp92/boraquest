@@ -13,7 +13,7 @@ import (
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/rule"
 )
 
-const entryColumns = `id, guild_id, rule_id, rule_name, score_type, points, member_id, logged_by, occurred_on, period_key, created_at`
+const entryColumns = `id, guild_id, rule_id, rule_name, score_type, points, member_id, logged_by, occurred_on, period_key, created_at, photo_url, photo_public_id`
 
 // EntryRepository stores entries in the entries table.
 type EntryRepository struct {
@@ -48,8 +48,9 @@ func (r *EntryRepository) Create(ctx context.Context, e entry.Entry) error {
 			}
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO entries (`+entryColumns+`)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-			e.ID, e.GuildID, e.RuleID, e.RuleName, e.ScoreType, e.Points, e.MemberID, e.LoggedBy, e.OccurredOn, e.PeriodKey, e.CreatedAt)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+			e.ID, e.GuildID, e.RuleID, e.RuleName, e.ScoreType, e.Points, e.MemberID, e.LoggedBy, e.OccurredOn, e.PeriodKey, e.CreatedAt,
+			e.PhotoURL, e.PhotoPublicID)
 		return err
 	})
 }
@@ -74,6 +75,23 @@ func (r *EntryRepository) Delete(ctx context.Context, guildID, id string) error 
 		return entry.ErrNotFound
 	}
 	return nil
+}
+
+// SetPhoto stores the photo of one entry of the guild, only if it has none yet.
+func (r *EntryRepository) SetPhoto(ctx context.Context, guildID, id, photoURL, photoPublicID string) (entry.Entry, error) {
+	row := r.pool.QueryRow(ctx, `UPDATE entries SET photo_url = $3, photo_public_id = $4
+		WHERE guild_id = $1 AND id = $2 AND photo_url = ''
+		RETURNING `+entryColumns,
+		guildID, id, photoURL, photoPublicID)
+	found, err := scanEntry(row)
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return found, err
+	}
+	// No row updated: either the entry doesn't exist or it already has a photo.
+	if _, err := r.Get(ctx, guildID, id); err != nil {
+		return entry.Entry{}, err
+	}
+	return entry.Entry{}, entry.ErrPhotoExists
 }
 
 // ListByMember returns memberID's entries with occurredOn in [from, to], newest first.
@@ -111,7 +129,7 @@ func (r *EntryRepository) SumByGuild(ctx context.Context, guildID string, from, 
 
 func scanEntry(row pgx.Row) (entry.Entry, error) {
 	var e entry.Entry
-	err := row.Scan(&e.ID, &e.GuildID, &e.RuleID, &e.RuleName, &e.ScoreType, &e.Points, &e.MemberID, &e.LoggedBy, &e.OccurredOn, &e.PeriodKey, &e.CreatedAt)
+	err := row.Scan(&e.ID, &e.GuildID, &e.RuleID, &e.RuleName, &e.ScoreType, &e.Points, &e.MemberID, &e.LoggedBy, &e.OccurredOn, &e.PeriodKey, &e.CreatedAt, &e.PhotoURL, &e.PhotoPublicID)
 	e.OccurredOn, e.PeriodKey, e.CreatedAt = e.OccurredOn.UTC(), e.PeriodKey.UTC(), e.CreatedAt.UTC()
 	return e, err
 }

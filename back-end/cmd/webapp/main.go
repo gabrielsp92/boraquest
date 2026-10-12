@@ -8,9 +8,12 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	cld "github.com/cloudinary/cloudinary-go/v2"
+
 	"github.com/gabrielsp92/boraquest/back-end/cmd/webapp/routes"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/app/service"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/clock"
+	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/cloudinary"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/idgen"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/postgres"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/security"
@@ -31,6 +34,10 @@ func main() {
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET must be set")
 	}
+	cloudName, cloudKey, cloudSecret := os.Getenv("CLOUDINARY_CLOUD_NAME"), os.Getenv("CLOUDINARY_API_KEY"), os.Getenv("CLOUDINARY_API_SECRET")
+	if cloudName == "" || cloudKey == "" || cloudSecret == "" {
+		log.Fatal("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET must be set")
+	}
 
 	loc, err := time.LoadLocation("America/Sao_Paulo")
 	if err != nil {
@@ -48,6 +55,11 @@ func main() {
 		log.Fatalf("migrate database: %v", err)
 	}
 	tokens := security.NewJWT(jwtSecret, tokenTTL, systemClock)
+	cloudinaryClient, err := cld.NewFromParams(cloudName, cloudKey, cloudSecret)
+	if err != nil {
+		log.Fatalf("configure cloudinary: %v", err)
+	}
+	photoUploader := cloudinary.NewUploader(cloudinaryClient)
 
 	// Application
 	healthService := service.NewHealthService(systemClock, version)
@@ -75,6 +87,7 @@ func main() {
 		idgen.UUIDGenerator{},
 		systemClock,
 		loc,
+		photoUploader,
 	)
 	guildService := service.NewGuildService(guildRepository, userRepository)
 	scoreboardService := service.NewScoreboardService(entryRepository, guildRepository, systemClock, loc)

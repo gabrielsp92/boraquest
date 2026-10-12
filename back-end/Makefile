@@ -3,8 +3,9 @@ COVER_PKGS := ./internal/...,./cmd/webapp/routes/...
 
 .PHONY: run dev db-up db-down seed-user seed-user-dry-run test test-unit test-integration cover lint
 
+# run/dev read $(ENV_FILE) (CLOUDINARY_* lives there, see .env.example).
 run:
-	go run ./cmd/webapp
+	@$(load_env); go run ./cmd/webapp
 
 # Dev-only default so `make run`/`make dev` work locally; always set a real secret elsewhere.
 export JWT_SECRET ?= boraquest-dev-secret
@@ -31,7 +32,7 @@ seed-user-dry-run:
 # Hot reload: rebuilds and restarts on every .go change.
 # Install once with: go install github.com/air-verse/air@latest
 dev:
-	$(shell go env GOPATH)/bin/air
+	@$(load_env); $(shell go env GOPATH)/bin/air
 
 test: test-unit test-integration
 

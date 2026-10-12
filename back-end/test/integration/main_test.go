@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"io"
 	"log"
 	"net/http/httptest"
 	"os"
@@ -111,6 +112,7 @@ func newServer(t *testing.T) *httptest.Server {
 			idgen.UUIDGenerator{},
 			systemClock,
 			saoPaulo,
+			fakePhotoStore{},
 		)),
 		Guild: controllers.NewGuildController(service.NewGuildService(
 			postgres.NewGuildRepository(pool),
@@ -148,4 +150,15 @@ func resetEntries(t *testing.T) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `DELETE FROM entries`)
 	require.NoError(t, err)
+}
+
+// fakePhotoStore stands in for Cloudinary so the suite never needs network access or secrets.
+type fakePhotoStore struct{}
+
+func (fakePhotoStore) Upload(_ context.Context, guildID, entryID string, file io.Reader) (string, string, error) {
+	if _, err := io.Copy(io.Discard, file); err != nil {
+		return "", "", err
+	}
+	id := "boraquest/" + guildID + "/entries/" + entryID
+	return "https://photos.test/" + id + ".jpg", id, nil
 }

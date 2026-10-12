@@ -1,8 +1,11 @@
 package unit_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -32,6 +35,19 @@ type fakeEntryUseCase struct {
 	id              string
 	in              service.EntryInput
 	period          service.EntryPeriod
+	contentType     string
+	size            int64
+	body            []byte
+}
+
+func (f *fakeEntryUseCase) AttachPhoto(_ context.Context, userID, id, contentType string, size int64, file io.Reader) (entry.Entry, error) {
+	f.userID, f.id, f.contentType, f.size = userID, id, contentType, size
+	b, err := io.ReadAll(file)
+	if err != nil {
+		return entry.Entry{}, err
+	}
+	f.body = b
+	return f.entry, f.err
 }
 
 func (f *fakeEntryUseCase) Create(_ context.Context, userID string, in service.EntryInput) (entry.Entry, error) {
@@ -71,10 +87,14 @@ func serveEntries(t *testing.T, uc controllers.EntryUseCase, method, path, body 
 	g.GET("", h.List)
 	g.POST("", h.Create)
 	g.DELETE("/:id", h.Delete)
+	g.POST("/:id/photo", h.UploadPhoto)
 
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer good")
 	req.Header.Set("Content-Type", "application/json")
+	if strings.HasSuffix(path, "/photo") {
+		req.Header.Set("Content-Type", photoContentType)
+	}
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	return rec
@@ -183,12 +203,18 @@ func TestEntryControllerErrorMapping(t *testing.T) {
 		{entry.ErrNotOwn, http.StatusForbidden, entry.ErrNotOwn.Error()},
 		{entry.ErrNotRemovable, http.StatusForbidden, entry.ErrNotRemovable.Error()},
 		{entry.ErrNotToday, http.StatusForbidden, entry.ErrNotToday.Error()},
+		{entry.ErrPhotoNotAllowed, http.StatusForbidden, entry.ErrPhotoNotAllowed.Error()},
+		{entry.ErrPhotoNotOwn, http.StatusForbidden, entry.ErrPhotoNotOwn.Error()},
+		{entry.ErrPhotoTooLate, http.StatusForbidden, entry.ErrPhotoTooLate.Error()},
+		{entry.ErrPhotoExists, http.StatusConflict, entry.ErrPhotoExists.Error()},
+		{entry.ErrInvalidPhoto, http.StatusBadRequest, entry.ErrInvalidPhoto.Error()},
 		{errBoom, http.StatusInternalServerError, "internal error"},
 	}
 	calls := [][3]string{
 		{http.MethodGet, "/entries?period=today", ""},
 		{http.MethodPost, "/entries", validEntryBody},
 		{http.MethodDelete, "/entries/e1", ""},
+		{http.MethodPost, "/entries/e1/photo", pngPhotoBody},
 	}
 	for _, tc := range cases {
 		for _, call := range calls {
@@ -199,5 +225,80 @@ func TestEntryControllerErrorMapping(t *testing.T) {
 				assert.Equal(t, tc.message, decode[response.ErrorBody](t, rec).Error)
 			})
 		}
+	}
+}
+
+// pngBytes starts with the PNG signature, so it sniffs as image/png.
+var pngBytes = append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0}, 600)...)
+
+const photoBoundary = "bq-photo-boundary"
+
+const photoContentType = "multipart/form-data; boundary=" + photoBoundary
+
+var pngPhotoBody = photoForm("photo", pngBytes)
+
+// photoForm builds a multipart body (boundary photoBoundary) with one file field holding content.
+func photoForm(field string, content []byte) string {
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	if err := w.SetBoundary(photoBoundary); err != nil {
+		panic(err)
+	}
+	part, err := w.CreateFormFile(field, "proof.bin")
+	if err != nil {
+		panic(err)
+	}
+	if _, err := part.Write(content); err != nil {
+		panic(err)
+	}
+	if err := w.Close(); err != nil {
+		panic(err)
+	}
+	return buf.String()
+}
+
+func TestEntryControllerUploadPhoto(t *testing.T) {
+	withPhoto := sampleEntry
+	withPhoto.PhotoURL = "https://cdn/e1.jpg"
+	uc := &fakeEntryUseCase{entry: withPhoto}
+
+	rec := serveEntries(t, uc, http.MethodPost, "/entries/e1/photo", pngPhotoBody)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	want := sampleEntryResponse
+	want.PhotoURL = "https://cdn/e1.jpg"
+	assert.Equal(t, want, decode[controllers.EntryResponse](t, rec))
+	assert.Equal(t, "lia", uc.userID)
+	assert.Equal(t, "e1", uc.id)
+	assert.Equal(t, "image/png", uc.contentType)
+	assert.Equal(t, int64(len(pngBytes)), uc.size)
+	assert.Equal(t, pngBytes, uc.body, "sniffed bytes must be replayed to the use-case")
+}
+
+func TestEntryControllerUploadPhotoSniffsInsteadOfTrustingClient(t *testing.T) {
+	uc := &fakeEntryUseCase{}
+
+	rec := serveEntries(t, uc, http.MethodPost, "/entries/e1/photo", photoForm("photo", []byte("not an image")))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "text/plain; charset=utf-8", uc.contentType)
+	assert.Equal(t, []byte("not an image"), uc.body)
+}
+
+func TestEntryControllerUploadPhotoMissingFile(t *testing.T) {
+	for name, body := range map[string]string{
+		"wrong field":   photoForm("picture", pngBytes),
+		"not multipart": "garbage",
+		"too big":       photoForm("photo", make([]byte, entry.MaxPhotoBytes+(2<<20))),
+	} {
+		t.Run(name, func(t *testing.T) {
+			uc := &fakeEntryUseCase{}
+
+			rec := serveEntries(t, uc, http.MethodPost, "/entries/e1/photo", body)
+
+			require.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.Equal(t, "a photo file (jpg, png or webp, up to 8MB) is required", decode[response.ErrorBody](t, rec).Error)
+			assert.Empty(t, uc.userID, "use-case must not be called")
+		})
 	}
 }

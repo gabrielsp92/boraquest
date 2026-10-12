@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -23,7 +25,14 @@ type EntryUseCase interface {
 	Create(ctx context.Context, callerID string, in service.EntryInput) (entry.Entry, error)
 	Delete(ctx context.Context, callerID, id string) error
 	List(ctx context.Context, callerID string, period service.EntryPeriod) (entries []entry.Entry, from, to, today time.Time, err error)
+	AttachPhoto(ctx context.Context, callerID, id, contentType string, size int64, file io.Reader) (entry.Entry, error)
 }
+
+// photoFormOverhead is how much a multipart body may exceed the photo itself.
+const photoFormOverhead = 1 << 20
+
+// sniffLen is how many leading bytes http.DetectContentType looks at.
+const sniffLen = 512
 
 // EntryRequest is the JSON body of POST /entries.
 type EntryRequest struct {
@@ -42,6 +51,7 @@ type EntryResponse struct {
 	LoggedBy   string    `json:"loggedBy"`
 	OccurredOn string    `json:"occurredOn"`
 	CreatedAt  time.Time `json:"createdAt"`
+	PhotoURL   string    `json:"photoUrl"`
 }
 
 // EntryListResponse is the JSON body of GET /entries.
@@ -108,6 +118,29 @@ func (h *EntryController) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// UploadPhoto handles POST /api/v1/entries/:id/photo (multipart field "photo").
+func (h *EntryController) UploadPhoto(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, entry.MaxPhotoBytes+photoFormOverhead)
+	file, header, err := c.Request.FormFile("photo")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "a photo file (jpg, png or webp, up to 8MB) is required")
+		return
+	}
+	defer file.Close()
+	// The client-declared Content-Type can't be trusted; sniff the real bytes instead.
+	head := make([]byte, sniffLen)
+	n, _ := io.ReadFull(file, head)
+	contentType := http.DetectContentType(head[:n])
+	body := io.MultiReader(bytes.NewReader(head[:n]), file)
+
+	e, err := h.entries.AttachPhoto(c.Request.Context(), middleware.UserID(c), c.Param("id"), contentType, header.Size, body)
+	if err != nil {
+		writeEntryError(c, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, toEntryResponse(e))
+}
+
 func bindEntryPeriod(c *gin.Context) (service.EntryPeriod, bool) {
 	period := service.EntryPeriod(c.Query("period"))
 	switch period {
@@ -139,6 +172,7 @@ func toEntryResponse(e entry.Entry) EntryResponse {
 		LoggedBy:   e.LoggedBy,
 		OccurredOn: e.OccurredOn.Format(dateLayout),
 		CreatedAt:  e.CreatedAt.UTC(),
+		PhotoURL:   e.PhotoURL,
 	}
 }
 
@@ -160,8 +194,15 @@ func writeEntryError(c *gin.Context, err error) {
 		response.Error(c, http.StatusForbidden, err.Error())
 	case errors.Is(err, entry.ErrNotRemovable):
 		response.Error(c, http.StatusForbidden, err.Error())
-	case errors.Is(err, entry.ErrNotToday):
+	case errors.Is(err, entry.ErrNotToday),
+		errors.Is(err, entry.ErrPhotoNotAllowed),
+		errors.Is(err, entry.ErrPhotoNotOwn),
+		errors.Is(err, entry.ErrPhotoTooLate):
 		response.Error(c, http.StatusForbidden, err.Error())
+	case errors.Is(err, entry.ErrPhotoExists):
+		response.Error(c, http.StatusConflict, err.Error())
+	case errors.Is(err, entry.ErrInvalidPhoto):
+		response.Error(c, http.StatusBadRequest, err.Error())
 	default:
 		_ = c.Error(err)
 		response.Error(c, http.StatusInternalServerError, "internal error")

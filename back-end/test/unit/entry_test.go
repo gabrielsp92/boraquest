@@ -85,3 +85,45 @@ func TestWeekStart(t *testing.T) {
 		})
 	}
 }
+
+func TestValidatePhotoAttach(t *testing.T) {
+	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	today := entry.DateOnly(now)
+	ok := entry.Entry{ScoreType: rule.ScoreTypeSum, MemberID: "lia", OccurredOn: today}
+
+	cases := map[string]struct {
+		mutate func(e *entry.Entry)
+		caller string
+		want   error
+	}{
+		"own sum entry today":  {func(*entry.Entry) {}, "lia", nil},
+		"decrease entry":       {func(e *entry.Entry) { e.ScoreType = rule.ScoreTypeDecrease }, "lia", entry.ErrPhotoNotAllowed},
+		"someone else's entry": {func(*entry.Entry) {}, "beto", entry.ErrPhotoNotOwn},
+		"already has a photo":  {func(e *entry.Entry) { e.PhotoURL = "https://x/y.jpg" }, "lia", entry.ErrPhotoExists},
+		"yesterday's entry":    {func(e *entry.Entry) { e.OccurredOn = today.AddDate(0, 0, -1) }, "lia", entry.ErrPhotoTooLate},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			e := ok
+			tc.mutate(&e)
+			err := e.ValidatePhotoAttach(tc.caller, now)
+			if tc.want == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidPhotoFile(t *testing.T) {
+	for _, ct := range entry.AllowedPhotoTypes {
+		assert.True(t, entry.ValidPhotoFile(ct, 1), ct)
+		assert.True(t, entry.ValidPhotoFile(ct, entry.MaxPhotoBytes), ct+" at the size limit")
+		assert.False(t, entry.ValidPhotoFile(ct, entry.MaxPhotoBytes+1), ct+" one byte over")
+		assert.False(t, entry.ValidPhotoFile(ct, 0), ct+" empty")
+		assert.False(t, entry.ValidPhotoFile(ct, -1), ct+" negative")
+	}
+	assert.False(t, entry.ValidPhotoFile("image/gif", 10))
+	assert.False(t, entry.ValidPhotoFile("text/plain; charset=utf-8", 10))
+}

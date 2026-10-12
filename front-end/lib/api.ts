@@ -44,6 +44,21 @@ async function apiFetch<T>(path: string, method = "GET", body?: unknown): Promis
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
+async function apiFetchForm<T>(path: string, form: FormData): Promise<T> {
+  const session = getSession();
+  const headers: Record<string, string> = {};
+  if (session) headers.Authorization = `Bearer ${session.token}`;
+
+  // No Content-Type: the browser sets it, including the multipart boundary.
+  const res = await fetch(`/api/v1${path}`, { method: "POST", headers, body: form });
+  if (res.status === 401 && session) clearSession();
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new ApiError(res.status, data?.error ?? res.statusText);
+  }
+  return (await res.json()) as T;
+}
+
 export const login = (email: string, password: string) => apiFetch<Session>("/auth/login", "POST", { email, password });
 
 export const updateMyAvatar = (avatarKey: string) =>
@@ -71,6 +86,7 @@ export type Entry = {
   loggedBy: string;
   occurredOn: string; // "YYYY-MM-DD"
   createdAt: string;
+  photoUrl: string; // "" when the entry has no proof photo
 };
 export type EntryList = { entries: Entry[]; from: string; to: string; today: string }; // "YYYY-MM-DD"
 
@@ -78,6 +94,16 @@ export const listEntries = (period: EntryPeriod) => apiFetch<EntryList>(`/entrie
 export const createEntry = (ruleId: string, memberId: string) =>
   apiFetch<Entry>("/entries", "POST", { ruleId, memberId });
 export const deleteEntry = (id: string) => apiFetch<void>(`/entries/${encodeURIComponent(id)}`, "DELETE");
+
+/** Limits the API enforces on a proof photo (back-end entry.ValidPhotoFile). */
+export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+export const PHOTO_MAX_BYTES = 8 * 1024 * 1024;
+
+export const uploadEntryPhoto = (id: string, file: File) => {
+  const form = new FormData();
+  form.append("photo", file);
+  return apiFetchForm<Entry>(`/entries/${encodeURIComponent(id)}/photo`, form);
+};
 
 export type GuildMember = { id: string; name: string };
 export type GuildMemberList = { members: GuildMember[] };

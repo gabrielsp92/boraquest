@@ -1,18 +1,38 @@
 "use client";
 
 // The audited member's view: prove each completed quest with a photo or an explanation.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Banner, Button, Proof, Thumb, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { auditProofs, members, questById, type ProofItem } from "@/lib/data";
+import { DEFAULT_AVATAR } from "@/lib/avatars";
+import { listGuildMembers, type GuildMember } from "@/lib/api";
+import { useSession } from "@/lib/auth";
+import { auditProofs, questById, type ProofItem } from "@/lib/data";
 
 export default function AuditoriaPage() {
+  const session = useSession();
   const [proofs, setProofs] = useState<ProofItem[]>(auditProofs);
   const [editing, setEditing] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [guildMembers, setGuildMembers] = useState<GuildMember[] | null>(null);
   const proven = proofs.filter((p) => p.photo || p.note).length;
   const update = (id: string, patch: Partial<ProofItem>) => setProofs(proofs.map((p) => (p.questId === id ? { ...p, ...patch } : p)));
+
+  useEffect(() => {
+    let active = true;
+    listGuildMembers().then(
+      (ml) => active && setGuildMembers(ml.members),
+      () => active && setGuildMembers([]),
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Whoever requested this audit: the first guild member who isn't the signed-in member.
+  const requester = guildMembers?.find((m) => m.id !== session?.user?.id) ?? null;
+  const requesterView = requester ? { id: requester.id, name: requester.name, avatar: DEFAULT_AVATAR } : null;
 
   return (
     <div className="bq-screen">
@@ -25,7 +45,13 @@ export default function AuditoriaPage() {
             </Link>
           }
         />
-        <Banner member={members.lia} title="Lia pediu uma auditoria" text={sent ? "Provas enviadas. Agora é com ela." : "Mostre que você cumpriu as quests da semana."} />
+        {requesterView && (
+          <Banner
+            member={requesterView}
+            title={`${requesterView.name} pediu uma auditoria`}
+            text={sent ? "Provas enviadas. Agora é com ela." : "Mostre que você cumpriu as quests da semana."}
+          />
+        )}
 
         <div className="bq-list" style={{ gap: 12 }}>
           {proofs.map((p) => {

@@ -49,6 +49,7 @@ func NewRouter(c Controllers) *gin.Engine {
 	entries.GET("", c.Entries.List)
 	entries.POST("", c.Entries.Create)
 	entries.DELETE("/:id", c.Entries.Delete)
+	entries.POST("/:id/photo", c.Entries.UploadPhoto)
 
 	guildGroup := v1.Group("/guild", c.RequireAuth)
 	guildGroup.GET("/members", c.Guild.ListMembers)

@@ -2,6 +2,8 @@ package unit_test
 
 import (
 	"context"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +25,8 @@ type fakeEntryRepo struct {
 	listErr   error
 	summed    []service.MemberTotal
 	sumErr    error
+	photoSet  entry.Entry
+	photoErr  error
 
 	created   entry.Entry
 	getArgs   [2]string
@@ -35,6 +39,32 @@ type fakeEntryRepo struct {
 		guildID  string
 		from, to time.Time
 	}
+	photoArgs [4]string
+}
+
+func (f *fakeEntryRepo) SetPhoto(_ context.Context, guildID, id, photoURL, photoPublicID string) (entry.Entry, error) {
+	f.photoArgs = [4]string{guildID, id, photoURL, photoPublicID}
+	return f.photoSet, f.photoErr
+}
+
+// fakePhotoUploader records what it was asked to store and returns url/storedID/err.
+type fakePhotoUploader struct {
+	url, storedID string
+	err           error
+
+	called           bool
+	guildID, entryID string
+	body             string
+}
+
+func (f *fakePhotoUploader) Upload(_ context.Context, guildID, entryID string, file io.Reader) (string, string, error) {
+	f.called, f.guildID, f.entryID = true, guildID, entryID
+	b, err := io.ReadAll(file)
+	if err != nil {
+		return "", "", err
+	}
+	f.body = string(b)
+	return f.url, f.storedID, f.err
 }
 
 func (f *fakeEntryRepo) Create(_ context.Context, e entry.Entry) error {
@@ -73,7 +103,11 @@ func mustLoadLocation() *time.Location {
 }
 
 func newEntryService(entries *fakeEntryRepo, rules *fakeRuleRepo, guilds fakeGuilds, now time.Time) *service.EntryService {
-	return service.NewEntryService(entries, rules, guilds, fakeIDs{id: "new-entry"}, fakeClock{now: now}, saoPaulo)
+	return newEntryServiceWithPhotos(entries, rules, guilds, now, &fakePhotoUploader{})
+}
+
+func newEntryServiceWithPhotos(entries *fakeEntryRepo, rules *fakeRuleRepo, guilds fakeGuilds, now time.Time, photos *fakePhotoUploader) *service.EntryService {
+	return service.NewEntryService(entries, rules, guilds, fakeIDs{id: "new-entry"}, fakeClock{now: now}, saoPaulo, photos)
 }
 
 var dailySumRule = rule.Rule{ID: "r1", GuildID: "g1", Name: "Água", Frequency: rule.FrequencyDaily, ScoreType: rule.ScoreTypeSum, Score: 10}
@@ -296,4 +330,87 @@ func TestEntryServiceListRepoError(t *testing.T) {
 	_, _, _, _, err := newEntryService(entries, &fakeRuleRepo{}, fakeGuilds{guild: testGuild}, time.Now()).List(context.Background(), "lia", service.PeriodToday)
 
 	assert.ErrorIs(t, err, errBoom)
+}
+
+// photoAt is 12:00 in Sao Paulo; todaysSumEntry is lia's own quest from that day.
+var photoAt = time.Date(2026, 10, 8, 15, 0, 0, 0, time.UTC)
+
+var todaysSumEntry = entry.Entry{
+	ID: "e1", GuildID: "g1", ScoreType: rule.ScoreTypeSum, MemberID: "lia", LoggedBy: "lia",
+	OccurredOn: time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC),
+}
+
+func attachPhoto(entries *fakeEntryRepo, guilds fakeGuilds, photos *fakePhotoUploader, contentType string, size int64) (entry.Entry, error) {
+	svc := newEntryServiceWithPhotos(entries, &fakeRuleRepo{}, guilds, photoAt, photos)
+	return svc.AttachPhoto(context.Background(), "lia", "e1", contentType, size, strings.NewReader("img-bytes"))
+}
+
+func TestEntryServiceAttachPhoto(t *testing.T) {
+	withPhoto := todaysSumEntry
+	withPhoto.PhotoURL, withPhoto.PhotoPublicID = "https://cdn/e1.jpg", "boraquest/g1/entries/e1"
+	entries := &fakeEntryRepo{got: todaysSumEntry, photoSet: withPhoto}
+	photos := &fakePhotoUploader{url: "https://cdn/e1.jpg", storedID: "boraquest/g1/entries/e1"}
+
+	got, err := attachPhoto(entries, fakeGuilds{guild: testGuild}, photos, "image/jpeg", 9)
+
+	require.NoError(t, err)
+	assert.Equal(t, withPhoto, got)
+	assert.Equal(t, [2]string{"g1", "e1"}, entries.getArgs)
+	assert.Equal(t, "g1", photos.guildID)
+	assert.Equal(t, "e1", photos.entryID)
+	assert.Equal(t, "img-bytes", photos.body)
+	assert.Equal(t, [4]string{"g1", "e1", "https://cdn/e1.jpg", "boraquest/g1/entries/e1"}, entries.photoArgs)
+}
+
+func TestEntryServiceAttachPhotoUsesGuildTimezone(t *testing.T) {
+	// 02:30 UTC on the 9th is still the 8th in Sao Paulo, so the 8th's entry is "today".
+	entries := &fakeEntryRepo{got: todaysSumEntry}
+	svc := newEntryServiceWithPhotos(entries, &fakeRuleRepo{}, fakeGuilds{guild: testGuild}, time.Date(2026, 10, 9, 2, 30, 0, 0, time.UTC), &fakePhotoUploader{})
+
+	_, err := svc.AttachPhoto(context.Background(), "lia", "e1", "image/png", 9, strings.NewReader("x"))
+
+	assert.NoError(t, err)
+}
+
+func TestEntryServiceAttachPhotoErrors(t *testing.T) {
+	decrease := todaysSumEntry
+	decrease.ScoreType = rule.ScoreTypeDecrease
+	others := todaysSumEntry
+	others.MemberID = "beto"
+	hasPhoto := todaysSumEntry
+	hasPhoto.PhotoURL = "https://cdn/old.jpg"
+	yesterday := todaysSumEntry
+	yesterday.OccurredOn = yesterday.OccurredOn.AddDate(0, 0, -1)
+
+	cases := map[string]struct {
+		entries     *fakeEntryRepo
+		guilds      fakeGuilds
+		photos      *fakePhotoUploader
+		contentType string
+		size        int64
+		want        error
+		uploads     bool
+	}{
+		"not in a guild":  {&fakeEntryRepo{}, fakeGuilds{err: guild.ErrNotMember}, &fakePhotoUploader{}, "image/jpeg", 9, guild.ErrNotMember, false},
+		"entry not found": {&fakeEntryRepo{getErr: entry.ErrNotFound}, fakeGuilds{guild: testGuild}, &fakePhotoUploader{}, "image/jpeg", 9, entry.ErrNotFound, false},
+		"slip entry":      {&fakeEntryRepo{got: decrease}, fakeGuilds{guild: testGuild}, &fakePhotoUploader{}, "image/jpeg", 9, entry.ErrPhotoNotAllowed, false},
+		"not own entry":   {&fakeEntryRepo{got: others}, fakeGuilds{guild: testGuild}, &fakePhotoUploader{}, "image/jpeg", 9, entry.ErrPhotoNotOwn, false},
+		"already a photo": {&fakeEntryRepo{got: hasPhoto}, fakeGuilds{guild: testGuild}, &fakePhotoUploader{}, "image/jpeg", 9, entry.ErrPhotoExists, false},
+		"past day":        {&fakeEntryRepo{got: yesterday}, fakeGuilds{guild: testGuild}, &fakePhotoUploader{}, "image/jpeg", 9, entry.ErrPhotoTooLate, false},
+		"wrong type":      {&fakeEntryRepo{got: todaysSumEntry}, fakeGuilds{guild: testGuild}, &fakePhotoUploader{}, "image/gif", 9, entry.ErrInvalidPhoto, false},
+		"too big":         {&fakeEntryRepo{got: todaysSumEntry}, fakeGuilds{guild: testGuild}, &fakePhotoUploader{}, "image/jpeg", entry.MaxPhotoBytes + 1, entry.ErrInvalidPhoto, false},
+		"upload fails":    {&fakeEntryRepo{got: todaysSumEntry}, fakeGuilds{guild: testGuild}, &fakePhotoUploader{err: errBoom}, "image/jpeg", 9, errBoom, true},
+		"lost a race":     {&fakeEntryRepo{got: todaysSumEntry, photoErr: entry.ErrPhotoExists}, fakeGuilds{guild: testGuild}, &fakePhotoUploader{}, "image/jpeg", 9, entry.ErrPhotoExists, true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := attachPhoto(tc.entries, tc.guilds, tc.photos, tc.contentType, tc.size)
+
+			assert.ErrorIs(t, err, tc.want)
+			assert.Equal(t, tc.uploads, tc.photos.called, "uploader called")
+			if !tc.uploads || tc.photos.err != nil {
+				assert.Empty(t, tc.entries.photoArgs[0], "SetPhoto must not be called")
+			}
+		})
+	}
 }
