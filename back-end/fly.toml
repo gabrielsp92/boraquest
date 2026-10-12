@@ -1,6 +1,7 @@
 # Fly.io config for the API, deployed by .github/workflows/deploy-backend.yml.
 # Secrets (DATABASE_URL, JWT_SECRET, CLOUDINARY_*) are set once by hand with
-# `fly secrets set` and never by CI.
+# `make fly-secrets` and never by CI. The app lives in the "boraquest" Fly organization;
+# the Makefile targets and CI refuse to act on it anywhere else (scripts/fly-app.sh).
 app = "boraquest-api"       # replace with the name chosen in `fly apps create`
 primary_region = "gru"      # São Paulo
 

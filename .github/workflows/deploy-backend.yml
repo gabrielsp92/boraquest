@@ -32,12 +32,17 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v7
       - id: vars
         run: echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
       - uses: superfly/flyctl-actions/setup-flyctl@1.5
+      # Refuses unless the app in fly.toml belongs to the boraquest Fly organization.
       # The short SHA becomes main.version, so GET /api/v1/health shows which commit is live.
-      - run: flyctl deploy --remote-only --wait-timeout 600 --build-arg VERSION=${{ steps.vars.outputs.sha_short }}
+      - run: |
+          app=$(./scripts/fly-app.sh)
+          flyctl deploy -a "$app" --remote-only --wait-timeout 600 --build-arg VERSION=${{ steps.vars.outputs.sha_short }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_ORG: boraquest

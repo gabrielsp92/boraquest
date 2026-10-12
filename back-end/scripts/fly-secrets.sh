@@ -4,7 +4,7 @@
 # Only those keys are sent. Values go to `fly secrets import` on stdin, so they never
 # show up in shell history or `ps`. With -n it checks the file and prints what it
 # would set (names only) without calling Fly. Run it via `make fly-secrets` /
-# `make fly-secrets-dry-run`.
+# `make fly-secrets-dry-run`. Refuses unless the app is in the boraquest org (fly-app.sh).
 set -eu
 
 dry_run=false
@@ -47,6 +47,7 @@ if $dry_run; then
   exit 0
 fi
 
+app=$(./scripts/fly-app.sh)
 for k in $keys; do
   eval "printf '%s=%s\n' \"\$k\" \"\$$k\""
-done | fly secrets import
+done | fly secrets import -a "$app"
