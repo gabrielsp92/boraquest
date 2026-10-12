@@ -1,0 +1,48 @@
+# Push to main touching back-end/: test → deploy to Fly. Fly migrates the production DB
+# first (release_command in fly.toml); a failed migration aborts the deploy, so the
+# previous release keeps serving.
+# Migrations must stay backward-compatible with the running release (expand/contract).
+name: Deploy back-end
+
+on:
+  push:
+    branches: [main]
+    paths: ['back-end/**']
+
+concurrency:
+  group: deploy-backend-production
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: back-end
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: back-end/go.mod
+          cache-dependency-path: back-end/go.sum
+      - run: make lint
+      - run: make cover
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - id: vars
+        run: echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+      # Refuses unless the app in fly.toml belongs to the boraquest Fly organization.
+      # The short SHA becomes main.version, so GET /api/v1/health shows which commit is live.
+      - run: |
+          app=$(./scripts/fly-app.sh)
+          flyctl deploy -a "$app" --remote-only --wait-timeout 600 --build-arg VERSION=${{ steps.vars.outputs.sha_short }}
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_ORG: boraquest

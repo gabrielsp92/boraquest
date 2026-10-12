@@ -1,0 +1,28 @@
+# Fly.io config for the API, deployed by .github/workflows/deploy-backend.yml.
+# Secrets (DATABASE_URL, JWT_SECRET, CLOUDINARY_*) are set once by hand with
+# `make fly-secrets` and never by CI. The app lives in the "boraquest" Fly organization;
+# the Makefile targets and CI refuse to act on it anywhere else (scripts/fly-app.sh).
+app = "boraquest-api"       # replace with the name chosen in `fly apps create`
+primary_region = "gru"      # São Paulo
+
+# Before each deploy Fly runs this in a one-off machine from the new image, with
+# the app's secrets. If it fails, the deploy stops and the old release keeps serving.
+[deploy]
+  release_command = "/usr/local/bin/migrate"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "15s"
+  method = "GET"
+  timeout = "5s"
+  path = "/api/v1/health"
+
+[env]
+  GIN_MODE = "release"

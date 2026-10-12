@@ -22,7 +22,7 @@ Open http://localhost:3000 in a phone-sized window (390px wide).
 | `app/auditoria/revisar` | The requester approves or rejects |
 | `app/fim-de-semana` | Winner celebration, or the hold screen while the leader has an audit pending |
 | `app/globals.css` | Design tokens as a Tailwind theme, plus the `bq-*` component classes |
-| `app/manifest.ts`, `public/icons` | PWA manifest and placeholder icons |
+| `app/manifest.ts`, `public/icons` | PWA manifest and app icons (sources in `design/assets/AppIcon`) |
 | `components/ui.tsx` | The React components (Button, Avatar, QuestRow, RankRow, Sheet, ...) |
 | `components/Icon.tsx` | The line-icon set |
 | `lib/data.ts` | Types and sample data: the first thing to replace |
@@ -44,5 +44,4 @@ Read `design/BRAND.md` before adding a screen: one primary button per screen, no
 - Backend, accounts and a real guild. `me` in `lib/data.ts` is hardcoded.
 - Photos are kept in memory only; proof thumbnails are placeholders.
 - No service worker, so the app installs but does not work offline.
-- The app icon is a placeholder letter; there is no logo.
 - Nothing triggers the end-of-week or audit screens automatically; open their routes directly.

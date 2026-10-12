@@ -1,11 +1,12 @@
 # Packages measured for coverage: everything except the main() wiring.
 COVER_PKGS := ./internal/...,./cmd/webapp/routes/...
 
-.PHONY: run dev db-up db-down seed-user seed-user-dry-run test test-unit test-integration cover lint
+.PHONY: run dev migrate fly-app-create fly-deploy-token fly-secrets fly-secrets-dry-run db-up db-down seed-user seed-user-dry-run test test-unit test-integration cover lint
 
-# run/dev read $(ENV_FILE) (CLOUDINARY_* lives there, see .env.example).
+# run/dev read $(ENV_FILE) (CLOUDINARY_* lives there, see .env.example) and migrate
+# the database first: the API itself never migrates (Fly migrates production on deploy).
 run:
-	@$(load_env); go run ./cmd/webapp
+	@$(load_env); $(migrate_local) && go run ./cmd/webapp
 
 # Dev-only default so `make run`/`make dev` work locally; always set a real secret elsewhere.
 export JWT_SECRET ?= boraquest-dev-secret
@@ -22,6 +23,14 @@ db-down:
 # An existing email is left untouched. The dry run validates and checks the DB but writes nothing.
 ENV_FILE ?= ./.env
 load_env = set -a; [ ! -f $(ENV_FILE) ] || . $(ENV_FILE); set +a
+# DATABASE_URL, falling back to the docker-compose DB (cmd/migrate itself has no default).
+LOCAL_DATABASE_URL := postgres://boraquest:boraquest@localhost:5432/boraquest?sslmode=disable
+migrate_local = DATABASE_URL="$${DATABASE_URL:-$(LOCAL_DATABASE_URL)}" go run ./cmd/migrate
+
+# Applies pending migrations to DATABASE_URL, which must be set (no local fallback),
+# e.g. to migrate production by hand.
+migrate:
+	@$(load_env); go run ./cmd/migrate
 
 seed-user:
 	@$(load_env); go run ./cmd/seeduser
@@ -29,7 +38,29 @@ seed-user:
 seed-user-dry-run:
 	@$(load_env); go run ./cmd/seeduser -dry-run
 
-# Hot reload: rebuilds and restarts on every .go change.
+# Fly: every target works on the app named in fly.toml, and only inside the Fly organization
+# FLY_ORG (scripts/fly-app.sh refuses otherwise), since this account also belongs to other orgs.
+export FLY_ORG ?= boraquest
+FLY_APP_NAME = $(shell sed -n 's/^app *= *"\([^"]*\)".*/\1/p' fly.toml)
+
+# One-time: creates the app named in fly.toml in FLY_ORG.
+fly-app-create:
+	fly apps create $(FLY_APP_NAME) --org $(FLY_ORG)
+
+# One-time: prints a deploy token for the app (store it as the FLY_API_TOKEN GitHub secret).
+fly-deploy-token:
+	@app=$$(./scripts/fly-app.sh) && fly tokens create deploy -x 999999h -a "$$app"
+
+# Sets the Fly app's secrets (DATABASE_URL, JWT_SECRET, CLOUDINARY_*) from $(ENV_FILE); no other key
+# is sent. Refuses a local DATABASE_URL or the dev JWT_SECRET. Restarts running machines.
+# The dry run checks the file and lists what it would set, without calling Fly.
+fly-secrets:
+	@./scripts/fly-secrets.sh $(ENV_FILE)
+
+fly-secrets-dry-run:
+	@./scripts/fly-secrets.sh -n $(ENV_FILE)
+
+# Hot reload: rebuilds, migrates and restarts on every .go/.sql change (see .air.toml).
 # Install once with: go install github.com/air-verse/air@latest
 dev:
 	@$(load_env); $(shell go env GOPATH)/bin/air

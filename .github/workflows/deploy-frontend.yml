@@ -1,0 +1,38 @@
+# Push to main touching front-end/: lint + build, then deploy to Vercel production
+# with the Vercel CLI (Vercel's own Git deploys are off, see front-end/vercel.json).
+# BACKEND_URL comes from the Vercel project's Production env via `vercel pull`.
+name: Deploy front-end
+
+on:
+  push:
+    branches: [main]
+    paths: ['front-end/**']
+
+concurrency:
+  group: deploy-frontend-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: front-end
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: front-end/.nvmrc
+          cache: npm
+          cache-dependency-path: front-end/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm install --global vercel@latest
+      - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      # `vercel build` runs `next build`, so a type or build error stops the deploy here.
+      - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}

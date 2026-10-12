@@ -50,7 +50,8 @@ make db-up             # start local PostgreSQL (docker-compose.yml) — run/dev
 make db-down           # stop it (data volume is kept)
 make seed-user         # add one user from SEED_USER_* vars in back-end/.env (see .env.example); existing email = no-op
 make seed-user-dry-run # same, but only validates and checks the DB — writes nothing
-make run               # start API on :8080 (PORT env overrides)
+make migrate           # apply pending migrations to DATABASE_URL (required, no default)
+make run               # migrate local DB, then start API on :8080 (PORT env overrides)
 make dev               # start API with hot reload (Air, config in .air.toml)
 make test              # unit + integration
 make cover             # all tests + enforce 100% coverage (integration tests start their own Postgres via testcontainers — Docker must be running)
@@ -60,10 +61,18 @@ make lint              # go vet + gofmt check
 ### Runtime config, auth and data
 
 - Env: `DATABASE_URL` (defaults to the docker-compose DB), `JWT_SECRET` (required; the Makefile sets a dev-only default), `PORT`.
-- Migrations live in `internal/src/infrastructure/postgres/migrations/` (goose, embedded) and run on startup.
+- Migrations live in `internal/src/infrastructure/postgres/migrations/` (goose, embedded). The API never migrates itself: `cmd/migrate` (`make migrate`, needs `DATABASE_URL`) does. `make run`/`make dev` migrate the local DB first; production is migrated by Fly's `release_command` (`fly.toml`) before each deploy. Migrations must stay backward-compatible with the running release (expand/contract).
 - Dev users `lia`, `beto`, `nena`, `caio` (`<id>@boraquest.dev`) are seeded by `0003_seed_dev_users.sql`; the dev password is in that file's header comment.
 - Auth: `POST /api/v1/auth/login` returns an HS256 JWT (`sub` = user id). Protected routes use `middleware.RequireAuth`; read the caller with `middleware.UserID(c)`.
 - Guilds live in Postgres (`guilds`, `guild_members`; migration `0004_guilds.sql` creates `familia` with the four dev users). For v1 a user belongs to at most one guild. Everything guild-scoped resolves the caller's guild via `GuildRepository.FindByMember`. New users join a guild via `make seed-user` (`SEED_USER_GUILD`).
+
+## Deploy (CI/CD)
+
+- `.github/workflows/ci.yml`: PR lint + test, per side touched; deploys nothing.
+- `deploy-backend.yml` (push to `main`, `back-end/**`): `make lint`/`make cover` → `flyctl deploy` (`back-end/fly.toml`, `back-end/Dockerfile`). Fly runs `migrate` from the new image first; a failed migration aborts the deploy. Fly app secrets (`DATABASE_URL`, `JWT_SECRET`, `CLOUDINARY_*`) are set by hand with `make fly-secrets` (reads `back-end/.env`), never by CI.
+- **Fly organization is always `boraquest`** (the account belongs to others too). Every Fly command goes through `back-end/scripts/fly-app.sh`, which reads the app from `fly.toml` and refuses unless it belongs to that org; pass `-a "$app"` explicitly and never run bare `fly` commands against an unchecked app. One-time targets: `make fly-app-create` (`--org boraquest`), `make fly-deploy-token`.
+- `deploy-frontend.yml` (push to `main`, `front-end/**`): lint → `vercel pull`/`build`/`deploy --prebuilt --prod`. `BACKEND_URL` must be set in the Vercel project's Production env, or the site silently proxies to localhost.
+- One-time setup steps are in `todo/ci-cd-deploy.md` → Prerequisites.
 
 ## Front-end ↔ back-end
 
