@@ -1,7 +1,7 @@
 # Packages measured for coverage: everything except the main() wiring.
 COVER_PKGS := ./internal/...,./cmd/webapp/routes/...
 
-.PHONY: run dev migrate db-up db-down seed-user seed-user-dry-run test test-unit test-integration cover lint
+.PHONY: run dev migrate fly-secrets fly-secrets-dry-run db-up db-down seed-user seed-user-dry-run test test-unit test-integration cover lint
 
 # run/dev read $(ENV_FILE) (CLOUDINARY_* lives there, see .env.example) and migrate
 # the database first: the API itself never migrates (Fly migrates production on deploy).
@@ -37,6 +37,15 @@ seed-user:
 
 seed-user-dry-run:
 	@$(load_env); go run ./cmd/seeduser -dry-run
+
+# Sets the Fly app's secrets (DATABASE_URL, JWT_SECRET, CLOUDINARY_*) from $(ENV_FILE); no other key
+# is sent. Refuses a local DATABASE_URL or the dev JWT_SECRET. Restarts running machines.
+# The dry run checks the file and lists what it would set, without calling Fly.
+fly-secrets:
+	@./scripts/fly-secrets.sh $(ENV_FILE)
+
+fly-secrets-dry-run:
+	@./scripts/fly-secrets.sh -n $(ENV_FILE)
 
 # Hot reload: rebuilds, migrates and restarts on every .go/.sql change (see .air.toml).
 # Install once with: go install github.com/air-verse/air@latest
