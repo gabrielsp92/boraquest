@@ -1,7 +1,7 @@
 #!/bin/sh
 # Sets the Fly app's runtime secrets from an env file (default ./.env):
 #   DATABASE_URL, JWT_SECRET, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
-# Only those keys are sent. Values go to `fly secrets import` on stdin, so they never
+# Only those keys are sent. Values go to `flyctl secrets import` on stdin, so they never
 # show up in shell history or `ps`. With -n it checks the file and prints what it
 # would set (names only) without calling Fly. Run it via `make fly-secrets` /
 # `make fly-secrets-dry-run`. Refuses unless the app is in the boraquest org (fly-app.sh).
@@ -50,4 +50,4 @@ fi
 app=$(./scripts/fly-app.sh)
 for k in $keys; do
   eval "printf '%s=%s\n' \"\$k\" \"\$$k\""
-done | fly secrets import -a "$app"
+done | flyctl secrets import -a "$app"

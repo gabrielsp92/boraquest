@@ -12,7 +12,7 @@ app=$(sed -n 's/^app *= *"\([^"]*\)".*/\1/p' fly.toml)
 [ -n "$app" ] || { echo "no app name in fly.toml" >&2; exit 1; }
 
 status=$(flyctl status --json -a "$app") || {
-  echo "cannot read Fly app $app (create it with: make fly-app-create)" >&2
+  echo "flyctl status failed for Fly app $app (is FLY_API_TOKEN valid? does the app exist? create it with: make fly-app-create)" >&2
   exit 1
 }
 actual=$(printf '%s' "$status" | jq -r '.Organization.Slug')

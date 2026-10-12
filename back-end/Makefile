@@ -45,11 +45,11 @@ FLY_APP_NAME = $(shell sed -n 's/^app *= *"\([^"]*\)".*/\1/p' fly.toml)
 
 # One-time: creates the app named in fly.toml in FLY_ORG.
 fly-app-create:
-	fly apps create $(FLY_APP_NAME) --org $(FLY_ORG)
+	flyctl apps create $(FLY_APP_NAME) --org $(FLY_ORG)
 
 # One-time: prints a deploy token for the app (store it as the FLY_API_TOKEN GitHub secret).
 fly-deploy-token:
-	@app=$$(./scripts/fly-app.sh) && fly tokens create deploy -x 999999h -a "$$app"
+	@app=$$(./scripts/fly-app.sh) && flyctl tokens create deploy -x 999999h -a "$$app"
 
 # Sets the Fly app's secrets (DATABASE_URL, JWT_SECRET, CLOUDINARY_*) from $(ENV_FILE); no other key
 # is sent. Refuses a local DATABASE_URL or the dev JWT_SECRET. Restarts running machines.
