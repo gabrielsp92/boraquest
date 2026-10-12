@@ -1,6 +1,6 @@
 # Quest photo uploads: optional proof photo on Hoje, guild-visible thumbnail on Semana
 
-Status: Ready
+Status: Done
 Last updated: 2026-10-10
 Depends on: [`quest-entries.md`](./quest-entries.md) (Ready, real `entries` table/aggregate already implemented on disk) — this spec extends the existing `entry.Entry` aggregate instead of creating a new one. Also supersedes `quest-entries.md`'s Non-goal "Persisting photos" (that spec deliberately kept the photo sheet client-only/in-memory; this spec is what makes it real).
 
