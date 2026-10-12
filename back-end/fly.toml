@@ -4,6 +4,11 @@
 app = "boraquest-api"       # replace with the name chosen in `fly apps create`
 primary_region = "gru"      # São Paulo
 
+# Before each deploy Fly runs this in a one-off machine from the new image, with
+# the app's secrets. If it fails, the deploy stops and the old release keeps serving.
+[deploy]
+  release_command = "/usr/local/bin/migrate"
+
 [http_service]
   internal_port = 8080
   force_https = true

@@ -4,7 +4,7 @@ COVER_PKGS := ./internal/...,./cmd/webapp/routes/...
 .PHONY: run dev migrate db-up db-down seed-user seed-user-dry-run test test-unit test-integration cover lint
 
 # run/dev read $(ENV_FILE) (CLOUDINARY_* lives there, see .env.example) and migrate
-# the database first: the API itself never migrates (production migrates in CI).
+# the database first: the API itself never migrates (Fly migrates production on deploy).
 run:
 	@$(load_env); $(migrate_local) && go run ./cmd/webapp
 
@@ -27,8 +27,8 @@ load_env = set -a; [ ! -f $(ENV_FILE) ] || . $(ENV_FILE); set +a
 LOCAL_DATABASE_URL := postgres://boraquest:boraquest@localhost:5432/boraquest?sslmode=disable
 migrate_local = DATABASE_URL="$${DATABASE_URL:-$(LOCAL_DATABASE_URL)}" go run ./cmd/migrate
 
-# Applies pending migrations to DATABASE_URL, which must be set (no local fallback):
-# this is the target CI runs against production.
+# Applies pending migrations to DATABASE_URL, which must be set (no local fallback),
+# e.g. to migrate production by hand.
 migrate:
 	@$(load_env); go run ./cmd/migrate
 

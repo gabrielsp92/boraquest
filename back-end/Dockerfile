@@ -8,10 +8,12 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.version=${VERSION}" -o /out/webapp ./cmd/webapp
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/migrate ./cmd/migrate
 
 FROM alpine:3.22
 RUN apk add --no-cache ca-certificates && adduser -D -u 10001 appuser
-COPY --from=builder /out/webapp /usr/local/bin/webapp
+COPY --from=builder /out/webapp /out/migrate /usr/local/bin/
 USER appuser
 EXPOSE 8080
-ENTRYPOINT ["/usr/local/bin/webapp"]
+# CMD, not ENTRYPOINT: fly.toml's release_command replaces it to run `migrate`.
+CMD ["/usr/local/bin/webapp"]

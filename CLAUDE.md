@@ -61,7 +61,7 @@ make lint              # go vet + gofmt check
 ### Runtime config, auth and data
 
 - Env: `DATABASE_URL` (defaults to the docker-compose DB), `JWT_SECRET` (required; the Makefile sets a dev-only default), `PORT`.
-- Migrations live in `internal/src/infrastructure/postgres/migrations/` (goose, embedded). The API never migrates itself: `cmd/migrate` (`make migrate`, needs `DATABASE_URL`) does. `make run`/`make dev` migrate the local DB first; production is migrated by CI before each deploy. Migrations must stay backward-compatible with the running release (expand/contract).
+- Migrations live in `internal/src/infrastructure/postgres/migrations/` (goose, embedded). The API never migrates itself: `cmd/migrate` (`make migrate`, needs `DATABASE_URL`) does. `make run`/`make dev` migrate the local DB first; production is migrated by Fly's `release_command` (`fly.toml`) before each deploy. Migrations must stay backward-compatible with the running release (expand/contract).
 - Dev users `lia`, `beto`, `nena`, `caio` (`<id>@boraquest.dev`) are seeded by `0003_seed_dev_users.sql`; the dev password is in that file's header comment.
 - Auth: `POST /api/v1/auth/login` returns an HS256 JWT (`sub` = user id). Protected routes use `middleware.RequireAuth`; read the caller with `middleware.UserID(c)`.
 - Guilds live in Postgres (`guilds`, `guild_members`; migration `0004_guilds.sql` creates `familia` with the four dev users). For v1 a user belongs to at most one guild. Everything guild-scoped resolves the caller's guild via `GuildRepository.FindByMember`. New users join a guild via `make seed-user` (`SEED_USER_GUILD`).
@@ -69,7 +69,7 @@ make lint              # go vet + gofmt check
 ## Deploy (CI/CD)
 
 - `.github/workflows/ci.yml`: PR lint + test, per side touched; deploys nothing.
-- `deploy-backend.yml` (push to `main`, `back-end/**`): `make lint`/`make cover` → `cmd/migrate` against Supabase (`SUPABASE_DB_URL`) → `flyctl deploy` (`back-end/fly.toml`, `back-end/Dockerfile`). A failed migration blocks the deploy. Fly app secrets (`DATABASE_URL`, `JWT_SECRET`, `CLOUDINARY_*`) are set by hand with `fly secrets set`, never by CI.
+- `deploy-backend.yml` (push to `main`, `back-end/**`): `make lint`/`make cover` → `flyctl deploy` (`back-end/fly.toml`, `back-end/Dockerfile`). Fly runs `migrate` from the new image first; a failed migration aborts the deploy. Fly app secrets (`DATABASE_URL`, `JWT_SECRET`, `CLOUDINARY_*`) are set by hand with `fly secrets set`, never by CI.
 - `deploy-frontend.yml` (push to `main`, `front-end/**`): lint → `vercel pull`/`build`/`deploy --prebuilt --prod`. `BACKEND_URL` must be set in the Vercel project's Production env, or the site silently proxies to localhost.
 - One-time setup steps are in `todo/ci-cd-deploy.md` → Prerequisites.
 

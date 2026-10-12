@@ -1,5 +1,6 @@
-# Push to main touching back-end/: test → migrate production DB → deploy to Fly.
-# A failed migration stops the run before deploy, so the previous release keeps serving.
+# Push to main touching back-end/: test → deploy to Fly. Fly migrates the production DB
+# first (release_command in fly.toml); a failed migration aborts the deploy, so the
+# previous release keeps serving.
 # Migrations must stay backward-compatible with the running release (expand/contract).
 name: Deploy back-end
 
@@ -28,21 +29,8 @@ jobs:
       - run: make lint
       - run: make cover
 
-  migrate:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: back-end/go.mod
-          cache-dependency-path: back-end/go.sum
-      - run: go run ./cmd/migrate
-        env:
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
-
   deploy:
-    needs: migrate
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

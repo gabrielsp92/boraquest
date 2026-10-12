@@ -2,10 +2,10 @@
 //
 //	DATABASE_URL  (required: no default, so it never migrates the wrong database by accident)
 //
-// It is the only thing that migrates the database: CI runs it against
-// production before deploying the API, and `make run` / `make dev` run it
-// against the docker-compose DB before starting the API. Run it by hand with
-// `make migrate`.
+// It is the only thing that migrates the database: Fly runs it against
+// production before each deploy (release_command in fly.toml), and
+// `make run` / `make dev` run it against the docker-compose DB before starting
+// the API. Run it by hand with `make migrate`.
 package main
 
 import (
