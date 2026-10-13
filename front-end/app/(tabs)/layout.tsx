@@ -6,7 +6,7 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
   return (
     <AuthGate>
       <ServiceWorkerRegistrar />
-      <div className="bq-screen">
+      <div className="bq-screen bq-screen--nav">
         <main className="bq-body">{children}</main>
         <BottomNav />
       </div>
