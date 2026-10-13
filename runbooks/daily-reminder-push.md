@@ -1,7 +1,7 @@
 # Runbook: Daily reminder: a 20h Web Push nudge to mark today's quests
 
 Spec: [todo/daily-reminder-push.md](../todo/daily-reminder-push.md)
-PR: (filled in during the PR step)
+PR: https://github.com/gabrielsp92/boraquest/pull/16
 Last updated: 2026-10-13
 
 ## Status
