@@ -90,7 +90,7 @@
   --font-body: var(--font-nunito), system-ui, sans-serif;
 }
 
-html { background: var(--ground); }
+html { background: var(--ground); touch-action: pan-x pan-y; }
 body { margin: 0; background: var(--ground); color: var(--ink); font: 700 17px/24px var(--font-body); }
 
 /* Components, ported 1:1 from design/components/bundle.css. Utilities can override them. */
@@ -187,6 +187,7 @@ body { margin: 0; background: var(--ground); color: var(--ink); font: 700 17px/2
   .bq-burst{width:72px;height:72px;border-radius:50%;background:var(--gain);color:var(--on-gain);display:grid;place-items:center}
 
   /* Field */
+  /* Inputs must stay >=16px or iOS zooms on focus (and pinch zoom is locked, so it could not zoom back). */
   .bq-field{display:flex;flex-direction:column;gap:var(--space-2)}
   .bq-input{appearance:none;width:100%;min-height:var(--tap-primary);padding:0 var(--space-4);border:2px solid var(--line-strong);border-radius:var(--radius-md);background:var(--surface);color:var(--ink);font:700 17px/24px var(--font-body);display:flex;align-items:center}
   .bq-input::placeholder{color:var(--ink-muted);opacity:1}

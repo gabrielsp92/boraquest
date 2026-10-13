@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { NoPinchZoom } from "@/components/NoPinchZoom";
 import "./globals.css";
 
 // Baloo 2 and Nunito (both SIL Open Font License), self-hosted so the PWA works offline.
@@ -28,13 +29,18 @@ export const viewport: Viewport = {
   themeColor: "#fff8ec",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className={`${baloo.variable} ${nunito.variable}`}>
-      <body>{children}</body>
+      <body>
+        <NoPinchZoom />
+        {children}
+      </body>
     </html>
   );
 }
