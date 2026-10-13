@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Banner, Button, Proof, Thumb, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { DEFAULT_AVATAR } from "@/lib/avatars";
+import { memberAvatarSrc } from "@/lib/avatars";
 import { listGuildMembers, type GuildMember } from "@/lib/api";
 import { useSession } from "@/lib/auth";
 import { auditProofs, questById, type ProofItem } from "@/lib/data";
@@ -32,7 +32,7 @@ export default function AuditoriaPage() {
 
   // Whoever requested this audit: the first guild member who isn't the signed-in member.
   const requester = guildMembers?.find((m) => m.id !== session?.user?.id) ?? null;
-  const requesterView = requester ? { id: requester.id, name: requester.name, avatar: DEFAULT_AVATAR } : null;
+  const requesterView = requester ? { id: requester.id, name: requester.name, avatar: memberAvatarSrc(requester) } : null;
 
   return (
     <div className="bq-screen">

@@ -13,8 +13,9 @@ type GuildUserRepository interface {
 
 // GuildMember is a lightweight view of a guild member.
 type GuildMember struct {
-	ID   string
-	Name string
+	ID        string
+	Name      string
+	AvatarKey string
 }
 
 // GuildService resolves information about the caller's guild.
@@ -45,7 +46,7 @@ func (s *GuildService) ListMembers(ctx context.Context, callerID string) ([]Guil
 	members := make([]GuildMember, 0, len(g.UserIDs))
 	for _, id := range g.UserIDs {
 		if u, ok := byID[id]; ok {
-			members = append(members, GuildMember{ID: u.ID, Name: u.Name})
+			members = append(members, GuildMember{ID: u.ID, Name: u.Name, AvatarKey: u.AvatarKey})
 		}
 	}
 	return members, nil

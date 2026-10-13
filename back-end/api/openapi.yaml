@@ -626,12 +626,15 @@ components:
           format: date
     GuildMember:
       type: object
-      required: [id, name]
+      required: [id, name, avatarKey]
       properties:
         id:
           type: string
         name:
           type: string
+        avatarKey:
+          type: string
+          enum: [beto, caio, duda, lia, nena, tom]
     GuildMemberList:
       type: object
       required: [members]

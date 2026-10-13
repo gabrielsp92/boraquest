@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -20,11 +21,31 @@ func TestGuildMembersListsSeededFamily(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	got := decodeBody[controllers.GuildMemberListResponse](t, res)
 	assert.ElementsMatch(t, []controllers.GuildMemberResponse{
-		{ID: "lia", Name: "Lia"},
-		{ID: "beto", Name: "Beto"},
-		{ID: "nena", Name: "Vó Nena"},
-		{ID: "caio", Name: "Caio"},
+		{ID: "lia", Name: "Lia", AvatarKey: "lia"},
+		{ID: "beto", Name: "Beto", AvatarKey: "beto"},
+		{ID: "nena", Name: "Vó Nena", AvatarKey: "nena"},
+		{ID: "caio", Name: "Caio", AvatarKey: "caio"},
 	}, got.Members)
+}
+
+func TestGuildMembersReflectAnotherMembersAvatarChange(t *testing.T) {
+	srv := newServer(t)
+	t.Cleanup(func() {
+		_, err := pool.Exec(context.Background(), `UPDATE users SET avatar_key = 'beto' WHERE id = 'beto'`)
+		require.NoError(t, err)
+	})
+	betoToken := login(t, srv.URL, "beto@boraquest.dev")
+	res := call(t, http.MethodPut, srv.URL+"/api/v1/me/avatar", betoToken, controllers.UpdateAvatarRequest{AvatarKey: "duda"})
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	res = call(t, http.MethodGet, srv.URL+"/api/v1/guild/members", login(t, srv.URL, "lia@boraquest.dev"), nil)
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	avatars := map[string]string{}
+	for _, m := range decodeBody[controllers.GuildMemberListResponse](t, res).Members {
+		avatars[m.ID] = m.AvatarKey
+	}
+	assert.Equal(t, map[string]string{"lia": "lia", "beto": "duda", "nena": "nena", "caio": "caio"}, avatars)
 }
 
 func TestGuildMembersRequiresAuth(t *testing.T) {

@@ -31,14 +31,17 @@ func newGuildService(guilds fakeGuilds, users *fakeGuildUserRepo) *service.Guild
 func TestGuildServiceListMembers(t *testing.T) {
 	g := guild.Guild{ID: "g1", Name: "Família", UserIDs: []string{"lia", "beto"}}
 	users := &fakeGuildUserRepo{users: []user.User{
-		{ID: "beto", Name: "Beto"},
-		{ID: "lia", Name: "Lia"},
+		{ID: "beto", Name: "Beto", AvatarKey: "duda"},
+		{ID: "lia", Name: "Lia", AvatarKey: "lia"},
 	}}
 
 	members, err := newGuildService(fakeGuilds{guild: g}, users).ListMembers(context.Background(), "lia")
 
 	require.NoError(t, err)
-	assert.Equal(t, []service.GuildMember{{ID: "lia", Name: "Lia"}, {ID: "beto", Name: "Beto"}}, members, "order follows the guild's UserIDs, not the repo's return order")
+	assert.Equal(t, []service.GuildMember{
+		{ID: "lia", Name: "Lia", AvatarKey: "lia"},
+		{ID: "beto", Name: "Beto", AvatarKey: "duda"},
+	}, members, "order follows the guild's UserIDs, not the repo's return order")
 	assert.Equal(t, []string{"lia", "beto"}, users.gotIDs)
 }
 

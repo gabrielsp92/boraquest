@@ -46,14 +46,18 @@ func serveGuild(t *testing.T, uc controllers.GuildUseCase, method, path string) 
 }
 
 func TestGuildControllerListMembers(t *testing.T) {
-	uc := &fakeGuildUseCase{members: []service.GuildMember{{ID: "lia", Name: "Lia"}, {ID: "beto", Name: "Beto"}}}
+	uc := &fakeGuildUseCase{members: []service.GuildMember{
+		{ID: "lia", Name: "Lia", AvatarKey: "lia"},
+		{ID: "beto", Name: "Beto", AvatarKey: "duda"},
+	}}
 
 	rec := serveGuild(t, uc, http.MethodGet, "/guild/members")
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, controllers.GuildMemberListResponse{
-		Members: []controllers.GuildMemberResponse{{ID: "lia", Name: "Lia"}, {ID: "beto", Name: "Beto"}},
-	}, decode[controllers.GuildMemberListResponse](t, rec))
+	assert.JSONEq(t, `{"members":[
+		{"id":"lia","name":"Lia","avatarKey":"lia"},
+		{"id":"beto","name":"Beto","avatarKey":"duda"}
+	]}`, rec.Body.String())
 	assert.Equal(t, "lia", uc.userID)
 }
 
