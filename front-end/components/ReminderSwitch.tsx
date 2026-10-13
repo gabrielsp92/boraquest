@@ -55,6 +55,9 @@ export function ReminderSwitch() {
     const key = publicKey.current;
     if (!reg || !key) {
       setState("error");
+      // The preload failed (slow first install, flaky network): fetch again so the next tap can work.
+      if (!reg) void registerServiceWorker().then((r) => (registration.current = r));
+      if (!key) void getPushPublicKey().then((r) => (publicKey.current = r.publicKey), () => undefined);
       return;
     }
     setTarget("on");
