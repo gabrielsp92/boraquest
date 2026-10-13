@@ -114,3 +114,10 @@ export type Standing = { memberId: string; points: number; completed: number };
 export type Scoreboard = { standings: Standing[]; from: string; to: string; today: string };
 
 export const getScoreboard = (period: ScoreboardPeriod) => apiFetch<Scoreboard>(`/scoreboard?period=${period}`);
+
+export type WeekStanding = { memberId: string; rank: number; points: number; completed: number };
+/** A closed week (Monday to Sunday); `prize` is the week prize in effect when it ended, "" if none. */
+export type WeekResult = { from: string; to: string; prize: string; winner: WeekStanding; standings: WeekStanding[] };
+export type WeekHistory = { weeks: WeekResult[] };
+
+export const getWeekHistory = () => apiFetch<WeekHistory>("/weeks/history");

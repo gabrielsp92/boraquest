@@ -17,6 +17,7 @@ type Controllers struct {
 	Entries    *controllers.EntryController
 	Guild      *controllers.GuildController
 	Scoreboard *controllers.ScoreboardController
+	Weeks      *controllers.WeekHistoryController
 	// RequireAuth guards every route that needs a signed-in user.
 	RequireAuth gin.HandlerFunc
 }
@@ -56,6 +57,9 @@ func NewRouter(c Controllers) *gin.Engine {
 
 	scoreboard := v1.Group("/scoreboard", c.RequireAuth)
 	scoreboard.GET("", c.Scoreboard.List)
+
+	weeks := v1.Group("/weeks", c.RequireAuth)
+	weeks.GET("/history", c.Weeks.List)
 
 	return r
 }

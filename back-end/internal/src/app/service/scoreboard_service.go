@@ -72,6 +72,14 @@ func (s *ScoreboardService) List(ctx context.Context, callerID string, period Sc
 		t := byMember[id] // zero value when the member has no entries this period
 		standings = append(standings, Standing{MemberID: id, Points: t.Points, Completed: t.Completed})
 	}
+	rankStandings(standings)
+	return standings, from, to, today, nil
+}
+
+// rankStandings sorts standings by points descending, then tasks completed
+// descending, then member id ascending — a fully deterministic order shared by
+// the live scoreboard and the closed-week history, so both always agree.
+func rankStandings(standings []Standing) {
 	sort.Slice(standings, func(i, j int) bool {
 		if standings[i].Points != standings[j].Points {
 			return standings[i].Points > standings[j].Points
@@ -81,5 +89,4 @@ func (s *ScoreboardService) List(ctx context.Context, callerID string, period Sc
 		}
 		return standings[i].MemberID < standings[j].MemberID
 	})
-	return standings, from, to, today, nil
 }

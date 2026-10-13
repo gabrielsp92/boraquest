@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, DayCard, EmptyState, RankRow, ScoreHeader, Segmented, Sheet, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { members, pastWeeks } from "@/lib/data";
-import { listEntries, listGuildMembers, type Entry, type EntryList, type GuildMember } from "@/lib/api";
+import { getWeekHistory, listEntries, listGuildMembers, type Entry, type EntryList, type GuildMember, type WeekResult } from "@/lib/api";
+import { memberAvatarSrc } from "@/lib/avatars";
 import { dayLabel, weekRangeLabel } from "@/lib/date";
 
 export default function SemanaPage() {
@@ -18,6 +18,11 @@ export default function SemanaPage() {
   const [guildMembers, setGuildMembers] = useState<GuildMember[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+
+  // Past weeks: fetched the first time "Anteriores" is opened, then kept.
+  const [pastWeeks, setPastWeeks] = useState<WeekResult[] | null>(null);
+  const [pastLoadError, setPastLoadError] = useState(false);
+  const [pastAttempt, setPastAttempt] = useState(0);
 
   function applyData(list: EntryList) {
     setEntries(list.entries);
@@ -50,8 +55,25 @@ export default function SemanaPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (view !== "anteriores" || pastWeeks !== null) return;
+    let active = true;
+    getWeekHistory()
+      .then(({ weeks }) => active && setPastWeeks(weeks))
+      .catch(() => active && setPastLoadError(true));
+    return () => {
+      active = false;
+    };
+  }, [view, pastWeeks, pastAttempt]);
+
+  function retryPast() {
+    setPastLoadError(false);
+    setPastAttempt((n) => n + 1);
+  }
+
   const memberById = new Map((guildMembers ?? []).map((m) => [m.id, m]));
   const displayName = (id: string) => memberById.get(id)?.name ?? id;
+  const toMember = (id: string) => ({ id, name: displayName(id), avatar: memberAvatarSrc(memberById.get(id)) });
 
   // Group entries by day, newest/today first.
   const byDay = new Map<string, Entry[]>();
@@ -127,17 +149,29 @@ export default function SemanaPage() {
         ))}
 
       {view === "anteriores" &&
-        (pastWeeks.length === 0 ? (
+        (pastWeeks === null || guildMembers === null ? (
+          pastLoadError || loadError ? (
+            <EmptyState icon="trophy" title="Não deu para carregar" text="Confira sua conexão e tente de novo.">
+              <Button onClick={pastLoadError ? retryPast : retry}>Tentar de novo</Button>
+            </EmptyState>
+          ) : (
+            <p className="bq-caption" role="status">
+              Carregando semanas anteriores…
+            </p>
+          )
+        ) : pastWeeks.length === 0 ? (
           <EmptyState icon="trophy" title="Ainda sem vencedores" text="O primeiro vencedor aparece aqui no fim da semana." />
         ) : (
           <div className="bq-list" style={{ gap: 12 }}>
             {pastWeeks.map((w) => (
-              <RankRow key={w.range} member={members[w.winner]} points={w.points} crown>
-                <p className="bq-caption">{w.range}</p>
-                <p className="bq-caption bq-row" style={{ gap: 4 }}>
-                  <Icon name="trophy" size={14} />
-                  {w.prize}
-                </p>
+              <RankRow key={w.from} member={toMember(w.winner.memberId)} points={w.winner.points} crown>
+                <p className="bq-caption">{weekRangeLabel(w.from, w.to)}</p>
+                {w.prize && (
+                  <p className="bq-caption bq-row" style={{ gap: 4 }}>
+                    <Icon name="trophy" size={14} />
+                    {w.prize}
+                  </p>
+                )}
               </RankRow>
             ))}
           </div>
