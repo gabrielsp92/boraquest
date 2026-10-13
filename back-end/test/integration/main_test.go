@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 
 	"github.com/gabrielsp92/boraquest/back-end/cmd/webapp/routes"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/app/service"
+	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/push"
+	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/reminder"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/clock"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/idgen"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/postgres"
@@ -30,6 +33,10 @@ const (
 	devPassword = "boraquest-dev"
 	// outsiderID is a user that exists but belongs to no guild.
 	outsiderID = "intruso"
+	// testCronSecret guards POST /internal/reminders/daily in tests.
+	testCronSecret = "integration-cron-secret"
+	// testVAPIDPublicKey is served by GET /push/public-key in tests.
+	testVAPIDPublicKey = "test-vapid-public-key"
 )
 
 var (
@@ -85,10 +92,20 @@ func run(ctx context.Context, m *testing.M, ctr *tcpostgres.PostgresContainer) i
 }
 
 // newServer wires the app exactly like cmd/webapp/main.go, against the test database.
+// The daily reminder sees 20:30 today (São Paulo) and a fake push sender.
 func newServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv, _ := newReminderServer(t, todayAt(20, 30))
+	return srv
+}
+
+// newReminderServer is newServer with the daily reminder's clock fixed at reminderNow;
+// it also returns the fake push sender so tests can inspect what was sent.
+func newReminderServer(t *testing.T, reminderNow time.Time) (*httptest.Server, *fakePushSender) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	systemClock := clock.SystemClock{}
+	sender := &fakePushSender{errs: map[string]error{}}
 	tokens := security.NewJWT(testJWTSecret, time.Hour, systemClock)
 	router := routes.NewRouter(routes.Controllers{
 		Health:  controllers.NewHealthController(service.NewHealthService(systemClock, "test")),
@@ -132,11 +149,62 @@ func newServer(t *testing.T) *httptest.Server {
 			systemClock,
 			saoPaulo,
 		)),
+		Push: controllers.NewPushController(service.NewPushService(
+			postgres.NewPushSubscriptionRepository(pool),
+			idgen.UUIDGenerator{},
+			systemClock,
+			testVAPIDPublicKey,
+		)),
+		Reminders: controllers.NewReminderController(service.NewReminderService(
+			postgres.NewGuildRepository(pool),
+			postgres.NewRuleRepository(pool),
+			postgres.NewEntryRepository(pool),
+			postgres.NewPushSubscriptionRepository(pool),
+			postgres.NewDailyReminderRepository(pool),
+			sender,
+			fixedClock{now: reminderNow},
+			saoPaulo,
+		)),
 		RequireAuth: middleware.RequireAuth(tokens),
+		RequireCron: middleware.RequireCronSecret(testCronSecret),
 	})
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
-	return srv
+	return srv, sender
+}
+
+// todayAt returns h:m today in São Paulo, the day the API's real clock is on.
+func todayAt(h, m int) time.Time {
+	y, mo, d := time.Now().In(saoPaulo).Date()
+	return time.Date(y, mo, d, h, m, 0, 0, saoPaulo)
+}
+
+// fixedClock always reads now.
+type fixedClock struct{ now time.Time }
+
+func (c fixedClock) Now() time.Time { return c.now }
+
+// fakePushSender stands in for the Web Push adapter: it records every send and
+// returns the error configured for that endpoint (nil by default).
+type fakePushSender struct {
+	mu   sync.Mutex
+	errs map[string]error
+	sent []string // endpoints, in send order
+	last reminder.Payload
+}
+
+func (f *fakePushSender) Send(_ context.Context, s push.Subscription, p reminder.Payload) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sent = append(f.sent, s.Endpoint)
+	f.last = p
+	return f.errs[s.Endpoint]
+}
+
+func (f *fakePushSender) sentTo() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.sent...)
 }
 
 // resetRules empties the rules table so each test starts from a clean guild.
@@ -150,6 +218,13 @@ func resetRules(t *testing.T) {
 func resetPrizes(t *testing.T) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `DELETE FROM prizes`)
+	require.NoError(t, err)
+}
+
+// resetPush empties the push subscription and daily reminder tables.
+func resetPush(t *testing.T) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `DELETE FROM push_subscriptions; DELETE FROM daily_reminders`)
 	require.NoError(t, err)
 }
 

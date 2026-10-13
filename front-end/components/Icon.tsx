@@ -18,6 +18,7 @@ const paths = {
   gift: (<><rect x={4} y={11} width={16} height={9} rx={1} /><path d="M3 7h18v4H3zM12 7v13M12 7c-2-4.500-6-3-4.500 0M12 7c2-4.500 6-3 4.500 0" /></>),
   pencil: (<><path d="M4 20l1-4L16 5l3 3L8 19z" /></>),
   chev: (<><path d="M9 6l6 6-6 6" /></>),
+  bell: (<><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></>),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof paths;

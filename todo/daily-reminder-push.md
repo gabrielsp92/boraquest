@@ -1,8 +1,9 @@
 # Daily reminder: a 20h Web Push nudge to mark today's quests
 
-Status: Ready
+Status: Done (runbook pending)
 Last updated: 2026-10-13
 Depends on: none to start. Builds on what [`quest-entries.md`](./quest-entries.md) already shipped: the `entries` table, `rules.frequency`/`score_type`, `EntryRepository.ListByMember`, and the `America/Sao_Paulo` location in `back-end/cmd/webapp/main.go:42`. Deploy setup comes from [`ci-cd-deploy.md`](./ci-cd-deploy.md) (Fly app, `make fly-secrets`, GitHub Actions).
+Runbook: [runbooks/daily-reminder-push.md](../runbooks/daily-reminder-push.md)
 
 ## Summary
 Every evening at around 20:00 (São Paulo time), each guild member who opted in on a device and still has at least one daily quest unchecked today gets a Web Push notification on that device: "Bora fechar o dia?". Tapping it opens Hoje. A switch on the Guilda tab turns this on or off per device. On iPhone/iPad the switch first walks the member through installing the app to the Home Screen, because iOS only allows Web Push there. A GitHub Actions scheduled workflow calls a secret-protected back-end endpoint once a day; the back-end decides who gets notified and sends the pushes.

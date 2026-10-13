@@ -3,7 +3,7 @@ COVER_PKGS := ./internal/...,./cmd/webapp/routes/...
 
 .PHONY: run dev migrate fly-app-create fly-deploy-token fly-secrets fly-secrets-dry-run db-up db-down seed-user seed-user-dry-run test test-unit test-integration cover lint
 
-# run/dev read $(ENV_FILE) (CLOUDINARY_* lives there, see .env.example) and migrate
+# run/dev read $(ENV_FILE) (CLOUDINARY_*, VAPID_* and REMINDER_CRON_SECRET live there, see .env.example) and migrate
 # the database first: the API itself never migrates (Fly migrates production on deploy).
 run:
 	@$(load_env); $(migrate_local) && go run ./cmd/webapp
@@ -51,7 +51,7 @@ fly-app-create:
 fly-deploy-token:
 	@app=$$(./scripts/fly-app.sh) && flyctl tokens create deploy -x 999999h -a "$$app"
 
-# Sets the Fly app's secrets (DATABASE_URL, JWT_SECRET, CLOUDINARY_*) from $(ENV_FILE); no other key
+# Sets the Fly app's secrets (DATABASE_URL, JWT_SECRET, CLOUDINARY_*, VAPID_*, REMINDER_CRON_SECRET) from $(ENV_FILE); no other key
 # is sent. Refuses a local DATABASE_URL or the dev JWT_SECRET. Restarts running machines.
 # The dry run checks the file and lists what it would set, without calling Fly.
 fly-secrets:
