@@ -341,14 +341,15 @@ func (s *ProfileService) UploadAvatarPhoto(ctx context.Context, callerID, conten
 }
 
 // discard deletes a no-longer-referenced avatar, best-effort (Business rule 10).
-// Failures are logged by the adapter and otherwise ignored.
+// Failures are logged by the adapter and otherwise ignored. It detaches from the
+// request's cancellation so a client that disconnects mid-save can't skip the cleanup.
 func (s *ProfileService) discard(ctx context.Context, storedID string) {
 	if storedID != "" {
-		_ = s.store.DeleteAvatar(ctx, storedID)
+		_ = s.store.DeleteAvatar(context.WithoutCancel(ctx), storedID)
 	}
 }
 ```
-The delete runs synchronously after the DB write. That adds one Cloudinary round trip to a rare action, but avoids goroutines that would make the 100%-coverage tests nondeterministic.
+The delete runs synchronously after the DB write. It uses `context.WithoutCancel(ctx)`: if the client goes away, the request ctx is cancelled (which is often *why* `SetAvatarPhoto` failed), and a delete on that same ctx would fail at once and orphan the asset. The Cloudinary SDK client's own HTTP timeout still bounds the call. That adds one Cloudinary round trip to a rare action, but avoids goroutines that would make the 100%-coverage tests nondeterministic.
 
 ### Postgres (`user_repository.go`)
 Both writes return the *previous* public id atomically. The `FROM (… FOR UPDATE)` sub-select locks the row, so two concurrent uploads serialize and the second sees the first's id as "previous". **Do not use PostgreSQL 18's `RETURNING OLD.*`**: the integration suite runs `postgres:17-alpine` (`test/integration/main_test.go:47`).
