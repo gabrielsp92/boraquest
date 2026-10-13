@@ -18,13 +18,21 @@ A spec's status lives in two places, and you keep them in sync every time you ch
 
 | Found status | What you do |
 | --- | --- |
-| `Ready` | Change it to `In Progress` in both places, then start working. |
+| `Ready` | First check nobody else claimed it (below). Then change it to `In Progress` in both places, commit only those two files (`Start <name>: mark In Progress`), push the branch, and start working. |
 | `Draft` | Stop. The spec still has open decisions. Tell the user and point them to the `feature-spec` agent. |
 | `In Progress` | Someone (maybe an earlier run of you) already started. Don't change anything; show the user `git status`/`git log` for the current branch and ask whether to resume here. Resume only on a clear yes. |
-| `Done` (any variant) | Stop and say it is already done. |
+| `Done` (anything starting with `Done`) | Stop and say it is already done. |
 | anything else | Stop and ask. |
 
-Also check the spec's `Depends on:` line. If a dependency spec isn't `Done`, stop before changing any status and say which one blocks it.
+Also check the spec's `Depends on:` line. Only names that match a file in `todo/` count as dependencies, and one counts as met when its status starts with `Done` (e.g. `Done (code; setup pending)`). A line like `none (builds on ...)` means no blockers. If a dependency isn't met, stop before changing any status and say which one blocks it.
+
+**Claim check.** Main only shows `In Progress` once a PR merges, so another session may already be building the spec on its own branch. Before claiming a `Ready` spec, run `git fetch origin` and look for the spec marked `In Progress` on any other branch, local or remote:
+
+```bash
+git for-each-ref --format='%(refname:short)' refs/heads refs/remotes/origin | while read ref; do git show "$ref:todo/<name>.md" 2>/dev/null | grep -q '^Status: In Progress' && echo "$ref"; done
+```
+
+If a branch shows up, stop, name it, and ask the user before going on.
 
 `Done` is only set in the PR step below, after the user approves. Never set it when the code merely compiles or the tests pass.
 
@@ -44,7 +52,7 @@ Then check the spec against the code. Specs drift: a migration number may be tak
 
 - If the current branch is `main`, create `feat/<name>` from it before changing anything.
 - Otherwise (e.g. a `claude/...` worktree branch), work on the current branch.
-- Don't commit or push during implementation. Everything is committed in the PR step.
+- Apart from the claim commit above, don't commit or push during implementation. Everything else is committed in the PR step.
 
 ## Implementing
 
@@ -55,7 +63,13 @@ Then check the spec against the code. Specs drift: a migration number may be tak
 
 ### Safety rules for this repo
 
-- **`back-end/.env` points at the production database.** Never run `make run`, `make dev`, `make migrate`, `make seed-user`, `make fly-*` or the `run-all` skill to test your work, since they source `.env`. To run the API locally, start the docker-compose Postgres (`make db-up`) and run it with `DATABASE_URL="postgres://boraquest:boraquest@localhost:5432/boraquest?sslmode=disable"` set explicitly, migrating that local DB with `go run ./cmd/migrate` under the same explicit `DATABASE_URL`.
+- **`back-end/.env` points at the production database and holds real Cloudinary credentials.** Never source it, and never run anything that does: `make run`, `make dev`, `make migrate`, `make seed-user`, `make fly-*`, the `run-all` skill, or `preview_start` with the `back-end` config from `.claude/launch.json`. To run the API locally, from `back-end/`:
+  ```bash
+  make db-up
+  export DATABASE_URL="postgres://boraquest:boraquest@localhost:5432/boraquest?sslmode=disable" JWT_SECRET=boraquest-dev-secret CLOUDINARY_CLOUD_NAME=local CLOUDINARY_API_KEY=local CLOUDINARY_API_SECRET=local
+  go run ./cmd/migrate && go run ./cmd/webapp
+  ```
+  The dummy Cloudinary values let the API boot (`cmd/webapp/main.go` refuses to start without them). Photo uploads will fail locally, so mark upload criteria manual-only instead of reaching for real keys. If you need it running across turns, start it with `run_in_background`. The `front-end` preview config is safe to use.
 - Never run any `fly`/`flyctl`, `vercel` or Supabase command against a real environment. Those steps go in the runbook for a human.
 - Migrations must be backward-compatible with the running release (expand/contract), as `CLAUDE.md` requires.
 - Front-end commands need Node 22: prefix with `PATH=/opt/homebrew/opt/node@22/bin:$PATH`.
@@ -66,7 +80,7 @@ Before you report back, all of these must pass. Show the real output; never clai
 
 - Back-end touched: from `back-end/`, `make lint` and `make cover` (Docker must be running; 100% coverage of `./internal/...` and `./cmd/webapp/routes/...`).
 - Front-end touched: from `front-end/`, `npm run lint` and `npm run build`.
-- Walk the spec's **Acceptance criteria** one by one and mark each met, not met, or manual-only. For UI changes, check them in the browser preview at a 390px viewport when you can, and attach a screenshot as proof.
+- Walk the spec's **Acceptance criteria** one by one and mark each met, not met, or manual-only. For UI changes, check them in the browser preview at a 390px viewport when you can (front-end via `preview_start` `front-end`, back-end only via the local recipe in Safety rules), and attach a screenshot as proof.
 - Run the `code-review` skill on your diff and fix every confirmed bug before reporting.
 
 ## Runbook
@@ -102,6 +116,9 @@ How to confirm each step worked (command plus expected output, URL plus what you
 
 ## Rollback
 How to undo it if something goes wrong.
+
+## When finished
+Change this runbook's row in `runbooks/README.md` to `Done`, and the spec's status from `Done (runbook pending)` to `Done` in `todo/<name>.md` and `todo/README.md`.
 ```
 
 Then add a line to `runbooks/README.md` (create it as a table index like `todo/README.md`: Runbook | Spec | Status (`Pending`/`Done`) | Last updated), and add `Runbook: [runbooks/<name>.md](../runbooks/<name>.md)` under the spec's `Depends on:` line.
@@ -123,8 +140,12 @@ Leave the status at `In Progress` and **stop**. Don't commit, push or open a PR 
 ## PR step (only after approval and an explicit request to create the PR)
 
 1. Set the spec to `Done` in both the spec file and `todo/README.md` (bump Last updated). If a runbook exists, use `Done (runbook pending)` instead, so it's visible that a human still has steps to run.
-2. Commit everything on the branch with a clear message describing the feature (end it with the commit attribution lines from the system reminder, if any).
+2. Commit everything on the branch with a clear message describing the feature. End it with the commit attribution lines from the system reminder; if you weren't given any, copy the `Co-Authored-By:` trailer format from the most recent Claude-authored commit in `git log`.
 3. Push the branch and open the PR with `gh pr create` against `main`. The description has: a summary, a link to the spec, the test results, and a **Before/after merge** section that links the runbook and lists its steps (or says "No action needed besides merging").
 4. If a runbook exists, fill its `PR:` line with the PR URL, commit and push that.
 5. Right after opening it, run the `code-review` skill on the PR. Fix confirmed bugs, push, and report what you fixed.
 6. Reply with the PR link, the final status, and, if there's a runbook, a reminder of who has to run it and when.
+
+## Closing a runbook
+
+If the user tells you a runbook has been run (e.g. "the runbook for X is done"), follow that runbook's **When finished** section, then commit and push or open a small PR as they prefer.
