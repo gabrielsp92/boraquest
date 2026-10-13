@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Banner, Button, Proof, Thumb, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { avatarSrc } from "@/lib/avatars";
+import { memberAvatarSrc } from "@/lib/avatars";
 import { listGuildMembers, type GuildMember } from "@/lib/api";
 import { useSession } from "@/lib/auth";
 import { auditProofs, questById } from "@/lib/data";
@@ -31,7 +31,7 @@ export default function RevisarAuditoriaPage() {
 
   // The guild member under review: the first guild member who isn't the signed-in member.
   const audited = guildMembers?.find((m) => m.id !== session?.user?.id) ?? null;
-  const auditedView = audited ? { id: audited.id, name: audited.name, avatar: avatarSrc(audited.avatarKey) } : null;
+  const auditedView = audited ? { id: audited.id, name: audited.name, avatar: memberAvatarSrc(audited) } : null;
 
   return (
     <div className="bq-screen">

@@ -13,6 +13,6 @@ export const AVATAR_KEYS: AvatarKey[] = ["lia", "beto", "nena", "caio", "duda", 
 
 export const avatarSrc = (key: string): string => `/avatars/${key}.svg`;
 
-/** A guild member's avatar, or DEFAULT_AVATAR when the member is unknown. */
-export const memberAvatarSrc = (member: { avatarKey: string } | undefined): string =>
-  member ? avatarSrc(member.avatarKey) : DEFAULT_AVATAR;
+/** A guild member's avatar, or DEFAULT_AVATAR when the member (or their key) is unknown. */
+export const memberAvatarSrc = (member: { avatarKey?: string } | null | undefined): string =>
+  member?.avatarKey ? avatarSrc(member.avatarKey) : DEFAULT_AVATAR;
