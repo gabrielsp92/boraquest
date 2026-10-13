@@ -20,8 +20,9 @@ type GuildUseCase interface {
 
 // GuildMemberResponse is the JSON representation of a guild member.
 type GuildMemberResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	AvatarKey string `json:"avatarKey"`
 }
 
 // GuildMemberListResponse is the JSON body of GET /guild/members.
@@ -48,7 +49,7 @@ func (h *GuildController) ListMembers(c *gin.Context) {
 	}
 	body := GuildMemberListResponse{Members: make([]GuildMemberResponse, 0, len(members))}
 	for _, m := range members {
-		body.Members = append(body.Members, GuildMemberResponse{ID: m.ID, Name: m.Name})
+		body.Members = append(body.Members, GuildMemberResponse{ID: m.ID, Name: m.Name, AvatarKey: m.AvatarKey})
 	}
 	response.JSON(c, http.StatusOK, body)
 }

@@ -7,7 +7,7 @@ import { Avatar, Banner, Button, Confetti, EmptyState, Points, QuestRow, ScoreHe
 import { Icon } from "@/components/Icon";
 import { useSession } from "@/lib/auth";
 import { todayCaption } from "@/lib/date";
-import { avatarSrc, DEFAULT_AVATAR } from "@/lib/avatars";
+import { avatarSrc, memberAvatarSrc } from "@/lib/avatars";
 import {
   ApiError,
   createEntry,
@@ -109,7 +109,10 @@ export default function HojePage() {
   const memberById = new Map(guildMembers.map((m) => [m.id, m]));
   const displayName = (id: string) => memberById.get(id)?.name ?? id;
   const meMember = memberById.get(me);
-  const meAvatarMember = meMember && { id: meMember.id, name: meMember.name, avatar: avatarSrc(session.user.avatarKey) };
+  // The session is fresher than the member list for the caller: the avatar picker on
+  // this page updates it without refetching the list.
+  const memberAvatar = (id: string) => (id === me ? avatarSrc(session.user.avatarKey) : memberAvatarSrc(memberById.get(id)));
+  const meAvatarMember = meMember && { id: meMember.id, name: meMember.name, avatar: memberAvatar(me) };
   const avatarButton = meAvatarMember && (
     <button type="button" className="bq-avatar-btn" aria-label="Seu avatar" onClick={() => setAvatarOpen(true)}>
       <Avatar member={meAvatarMember} />
@@ -238,7 +241,7 @@ export default function HojePage() {
 
       {notice && (
         <Banner
-          member={{ id: notice, name: displayName(notice), avatar: DEFAULT_AVATAR }}
+          member={{ id: notice, name: displayName(notice), avatar: memberAvatar(notice) }}
           title={`Deslize anotado para ${displayName(notice)}`}
           text={`Vai aparecer como “anotado por ${session.user.name}”.`}
         />
@@ -325,7 +328,7 @@ export default function HojePage() {
           <div className="bq-row" style={{ alignItems: "flex-start" }}>
             {guildMembers.map((m) => (
               <button key={m.id} type="button" className="bq-pick" aria-pressed={m.id === slipWho} onClick={() => setSlipWho(m.id)}>
-                <Avatar member={{ id: m.id, name: m.name, avatar: DEFAULT_AVATAR }} selected={m.id === slipWho} />
+                <Avatar member={{ id: m.id, name: m.name, avatar: memberAvatar(m.id) }} selected={m.id === slipWho} />
                 <span>{m.name}</span>
               </button>
             ))}

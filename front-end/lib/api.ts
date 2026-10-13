@@ -105,7 +105,7 @@ export const uploadEntryPhoto = (id: string, file: File) => {
   return apiFetchForm<Entry>(`/entries/${encodeURIComponent(id)}/photo`, form);
 };
 
-export type GuildMember = { id: string; name: string };
+export type GuildMember = { id: string; name: string; avatarKey: string };
 export type GuildMemberList = { members: GuildMember[] };
 export const listGuildMembers = () => apiFetch<GuildMemberList>("/guild/members");
 
