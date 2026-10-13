@@ -35,6 +35,10 @@ type PrizeHistoryReader interface {
 	WeekPrizeAt(ctx context.Context, guildID string, at time.Time) (string, error)
 }
 
+// closeGrace delays closing a week past its end, so an entry validated for
+// Sunday just before midnight still commits before the week is frozen.
+const closeGrace = 5 * time.Minute
+
 // WeekHistoryService closes ended weeks (lazily, on read) and lists them.
 // Entries can only be logged for today, so a week's totals are final once it ends.
 type WeekHistoryService struct {
@@ -59,7 +63,7 @@ func (s *WeekHistoryService) List(ctx context.Context, callerID string) ([]weekr
 		return nil, err
 	}
 	now := s.clock.Now()
-	current := entry.WeekStart(entry.DateOnly(now.In(s.loc)))
+	current := entry.WeekStart(entry.DateOnly(now.Add(-closeGrace).In(s.loc)))
 	var from time.Time // zero: no week closed yet, scan from the very first entry
 	if latest, ok, err := s.results.LatestWeekStart(ctx, g.ID); err != nil {
 		return nil, err

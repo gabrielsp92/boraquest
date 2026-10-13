@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, DayCard, EmptyState, RankRow, ScoreHeader, Segmented, Sheet, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
@@ -19,10 +19,11 @@ export default function SemanaPage() {
   const [loadError, setLoadError] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
 
-  // Past weeks: fetched the first time "Anteriores" is opened, then kept.
+  // Past weeks: fetched the first time "Anteriores" is opened, then kept. Not
+  // tied to the tab, so switching away mid-request never discards the response.
   const [pastWeeks, setPastWeeks] = useState<WeekResult[] | null>(null);
   const [pastLoadError, setPastLoadError] = useState(false);
-  const [pastAttempt, setPastAttempt] = useState(0);
+  const pastLoading = useRef(false);
 
   function applyData(list: EntryList) {
     setEntries(list.entries);
@@ -55,20 +56,21 @@ export default function SemanaPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (view !== "anteriores" || pastWeeks !== null) return;
-    let active = true;
-    getWeekHistory()
-      .then(({ weeks }) => active && setPastWeeks(weeks))
-      .catch(() => active && setPastLoadError(true));
-    return () => {
-      active = false;
-    };
-  }, [view, pastWeeks, pastAttempt]);
-
-  function retryPast() {
+  function loadPast() {
+    if (pastWeeks !== null || pastLoading.current) return;
+    pastLoading.current = true;
     setPastLoadError(false);
-    setPastAttempt((n) => n + 1);
+    getWeekHistory()
+      .then(({ weeks }) => setPastWeeks(weeks))
+      .catch(() => setPastLoadError(true))
+      .finally(() => {
+        pastLoading.current = false;
+      });
+  }
+
+  function changeView(next: "atual" | "anteriores") {
+    setView(next);
+    if (next === "anteriores") loadPast();
   }
 
   const memberById = new Map((guildMembers ?? []).map((m) => [m.id, m]));
@@ -88,7 +90,7 @@ export default function SemanaPage() {
       <TopBar title="Semana" caption={view === "atual" ? (from && to ? weekRangeLabel(from, to) : undefined) : "Quem já venceu"} />
       <Segmented
         value={view}
-        onChange={setView}
+        onChange={changeView}
         options={[
           { value: "atual", label: "Esta semana" },
           { value: "anteriores", label: "Anteriores" },
@@ -152,7 +154,7 @@ export default function SemanaPage() {
         (pastWeeks === null || guildMembers === null ? (
           pastLoadError || loadError ? (
             <EmptyState icon="trophy" title="Não deu para carregar" text="Confira sua conexão e tente de novo.">
-              <Button onClick={pastLoadError ? retryPast : retry}>Tentar de novo</Button>
+              <Button onClick={pastLoadError ? loadPast : retry}>Tentar de novo</Button>
             </EmptyState>
           ) : (
             <p className="bq-caption" role="status">

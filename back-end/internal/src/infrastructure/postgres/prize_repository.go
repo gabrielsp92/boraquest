@@ -32,29 +32,18 @@ func (r *PrizeRepository) Get(ctx context.Context, guildID string) (prize.Prizes
 }
 
 // Upsert creates the guild's row if missing, then sets just the given period's column.
-// Every edit is also appended to prize_changes, in the same transaction, so closed
-// weeks can later snapshot the prize that was in effect when they ended.
+// A trigger on prizes appends every change to prize_changes (see WeekPrizeAt).
 func (r *PrizeRepository) Upsert(ctx context.Context, guildID string, period prize.Period, text string, now time.Time) (prize.Prizes, error) {
-	var x prize.Prizes
-	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
-		row := tx.QueryRow(ctx, `
-			INSERT INTO prizes (guild_id, week, month, updated_at)
-			VALUES ($1, CASE WHEN $2 = 'week' THEN $3 ELSE '' END, CASE WHEN $2 = 'month' THEN $3 ELSE '' END, $4)
-			ON CONFLICT (guild_id) DO UPDATE SET
-				week       = CASE WHEN $2 = 'week'  THEN $3 ELSE prizes.week  END,
-				month      = CASE WHEN $2 = 'month' THEN $3 ELSE prizes.month END,
-				updated_at = $4
-			RETURNING guild_id, week, month, updated_at`,
-			guildID, period, text, now)
-		var err error
-		if x, err = scanPrizes(row); err != nil {
-			return err
-		}
-		_, err = tx.Exec(ctx, `INSERT INTO prize_changes (guild_id, period, text, changed_at) VALUES ($1, $2, $3, $4)`,
-			guildID, period, text, now)
-		return err
-	})
-	return x, err
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO prizes (guild_id, week, month, updated_at)
+		VALUES ($1, CASE WHEN $2 = 'week' THEN $3 ELSE '' END, CASE WHEN $2 = 'month' THEN $3 ELSE '' END, $4)
+		ON CONFLICT (guild_id) DO UPDATE SET
+			week       = CASE WHEN $2 = 'week'  THEN $3 ELSE prizes.week  END,
+			month      = CASE WHEN $2 = 'month' THEN $3 ELSE prizes.month END,
+			updated_at = $4
+		RETURNING guild_id, week, month, updated_at`,
+		guildID, period, text, now)
+	return scanPrizes(row)
 }
 
 // WeekPrizeAt returns the guild's week prize as it was right before at, or ""

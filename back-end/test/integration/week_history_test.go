@@ -2,11 +2,11 @@ package integration_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -180,19 +180,32 @@ func TestWeekResultRepositorySaveAllStatementErrors(t *testing.T) {
 	assert.False(t, ok, "the failed save is rolled back")
 }
 
-func TestPrizeRepositoryUpsertStatementErrors(t *testing.T) {
+func TestPrizeChangesAreLoggedByTrigger(t *testing.T) {
 	resetWeekHistory(t)
 	ctx := context.Background()
 	prizes := postgres.NewPrizeRepository(pool)
+	t0 := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 
-	_, err := prizes.Upsert(ctx, "familia", prize.PeriodWeek, fmt.Sprintf("%061d", 0), time.Now())
-	assert.Error(t, err, "prizes length check")
-
-	_, err = prizes.Upsert(ctx, "familia", prize.Period("year"), "x", time.Now())
-	assert.Error(t, err, "prize_changes period check")
-	got, err := prizes.Get(ctx, "familia")
+	_, err := prizes.Upsert(ctx, "familia", prize.PeriodWeek, "Filme", t0)
 	require.NoError(t, err)
-	assert.Equal(t, prize.Prizes{GuildID: "familia"}, got, "the failed upsert is rolled back")
+	_, err = prizes.Upsert(ctx, "familia", prize.PeriodMonth, "Jantar", t0.Add(time.Hour))
+	require.NoError(t, err)
+	_, err = prizes.Upsert(ctx, "familia", prize.PeriodWeek, "Filme", t0.Add(2*time.Hour)) // unchanged: not logged
+	require.NoError(t, err)
+	_, err = prizes.Upsert(ctx, "familia", prize.PeriodWeek, "Pizza", t0.Add(3*time.Hour))
+	require.NoError(t, err)
+
+	rows, err := pool.Query(ctx, `SELECT period || ':' || text FROM prize_changes WHERE guild_id = 'familia' ORDER BY changed_at, id`)
+	require.NoError(t, err)
+	logged, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	require.NoError(t, err)
+	assert.Equal(t, []string{"week:Filme", "month:Jantar", "week:Pizza"}, logged)
+
+	for at, want := range map[time.Time]string{t0: "", t0.Add(time.Minute): "Filme", t0.Add(4 * time.Hour): "Pizza"} {
+		got, err := prizes.WeekPrizeAt(ctx, "familia", at)
+		require.NoError(t, err)
+		assert.Equal(t, want, got, at)
+	}
 }
 
 func TestWeekHistoryRepositoriesSurfaceDatabaseErrors(t *testing.T) {

@@ -140,6 +140,26 @@ func TestWeekHistoryServiceUsesGuildTimezoneForCurrentWeek(t *testing.T) {
 	assert.Equal(t, day(2026, 10, 5), entries.before)
 }
 
+func TestWeekHistoryServiceWaitsAGracePeriodBeforeClosingAWeek(t *testing.T) {
+	for name, tc := range map[string]struct {
+		now    time.Time
+		before time.Time
+	}{
+		// Monday 00:02 in São Paulo: a Sunday entry may still be committing.
+		"within grace": {time.Date(2026, 10, 12, 3, 2, 0, 0, time.UTC), day(2026, 10, 5)},
+		"after grace":  {time.Date(2026, 10, 12, 3, 6, 0, 0, time.UTC), day(2026, 10, 12)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			entries := &fakeWeekEntries{}
+
+			_, err := newWeekHistoryService(&fakeWeekResults{}, entries, &fakePrizeHistory{}, fakeGuilds{guild: scoreboardGuild}, tc.now).List(context.Background(), "lia")
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.before, entries.before)
+		})
+	}
+}
+
 func TestWeekHistoryServiceRanksWithScoreboardTieBreakAndKeepsFormerMembers(t *testing.T) {
 	results := &fakeWeekResults{}
 	entries := &fakeWeekEntries{
