@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ReminderSwitch } from "@/components/ReminderSwitch";
 import { Avatar, Badge, Bar, Button, EmptyState, PrizeCard, RankRow, Segmented, Sheet, TopBar } from "@/components/ui";
 import { getPrizes, getScoreboard, listGuildMembers, type GuildMember, type Prizes, type Standing } from "@/lib/api";
 import { useSession } from "@/lib/auth";
@@ -145,6 +146,8 @@ export default function GuildaPage() {
           ))}
         </div>
       )}
+
+      {session && <ReminderSwitch />}
 
       <Sheet open={!!asking} onClose={() => setAsking(null)}>
         {asking && (

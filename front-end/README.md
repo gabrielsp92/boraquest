@@ -43,5 +43,5 @@ Read `design/BRAND.md` before adding a screen: one primary button per screen, no
 
 - Backend, accounts and a real guild. `me` in `lib/data.ts` is hardcoded.
 - Photos are kept in memory only; proof thumbnails are placeholders.
-- No service worker, so the app installs but does not work offline.
+- The service worker (`public/sw.js`) only shows the daily reminder push and opens Hoje on tap; it caches nothing, so the app installs but does not work offline.
 - Nothing triggers the end-of-week or audit screens automatically; open their routes directly.

@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"time"
 	_ "time/tzdata"
@@ -17,6 +18,7 @@ import (
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/idgen"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/postgres"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/security"
+	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/webpush"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/interface/http/controllers"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/interface/http/middleware"
 )
@@ -24,7 +26,11 @@ import (
 // version is overridden at build time via -ldflags "-X main.version=...".
 var version = "dev"
 
-const tokenTTL = 24 * time.Hour
+const (
+	tokenTTL = 24 * time.Hour
+	// pushTimeout bounds each Web Push request of the daily reminder run.
+	pushTimeout = 10 * time.Second
+)
 
 func main() {
 	ctx := context.Background()
@@ -37,6 +43,11 @@ func main() {
 	cloudName, cloudKey, cloudSecret := os.Getenv("CLOUDINARY_CLOUD_NAME"), os.Getenv("CLOUDINARY_API_KEY"), os.Getenv("CLOUDINARY_API_SECRET")
 	if cloudName == "" || cloudKey == "" || cloudSecret == "" {
 		log.Fatal("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET must be set")
+	}
+	vapidPublic, vapidPrivate, vapidSubject := os.Getenv("VAPID_PUBLIC_KEY"), os.Getenv("VAPID_PRIVATE_KEY"), os.Getenv("VAPID_SUBJECT")
+	cronSecret := os.Getenv("REMINDER_CRON_SECRET")
+	if vapidPublic == "" || vapidPrivate == "" || vapidSubject == "" || cronSecret == "" {
+		log.Fatal("VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT and REMINDER_CRON_SECRET must be set")
 	}
 
 	loc, err := time.LoadLocation("America/Sao_Paulo")
@@ -57,6 +68,7 @@ func main() {
 		log.Fatalf("configure cloudinary: %v", err)
 	}
 	photoUploader := cloudinary.NewUploader(cloudinaryClient)
+	pushSender := webpush.NewSender(vapidPublic, vapidPrivate, vapidSubject, &http.Client{Timeout: pushTimeout})
 
 	// Application
 	healthService := service.NewHealthService(systemClock, version)
@@ -97,6 +109,18 @@ func main() {
 		systemClock,
 		loc,
 	)
+	pushSubscriptionRepository := postgres.NewPushSubscriptionRepository(pool)
+	pushService := service.NewPushService(pushSubscriptionRepository, idgen.UUIDGenerator{}, systemClock, vapidPublic)
+	reminderService := service.NewReminderService(
+		guildRepository,
+		ruleRepository,
+		entryRepository,
+		pushSubscriptionRepository,
+		postgres.NewDailyReminderRepository(pool),
+		pushSender,
+		systemClock,
+		loc,
+	)
 
 	// Interface
 	router := routes.NewRouter(routes.Controllers{
@@ -109,7 +133,10 @@ func main() {
 		Guild:       controllers.NewGuildController(guildService),
 		Scoreboard:  controllers.NewScoreboardController(scoreboardService),
 		Weeks:       controllers.NewWeekHistoryController(weekHistoryService),
+		Push:        controllers.NewPushController(pushService),
+		Reminders:   controllers.NewReminderController(reminderService),
 		RequireAuth: middleware.RequireAuth(tokens),
+		RequireCron: middleware.RequireCronSecret(cronSecret),
 	})
 
 	port := getenv("PORT", "8080")

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Sets the Fly app's runtime secrets from an env file (default ./.env):
-#   DATABASE_URL, JWT_SECRET, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+#   DATABASE_URL, JWT_SECRET, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET,
+#   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, REMINDER_CRON_SECRET
 # Only those keys are sent. Values go to `flyctl secrets import` on stdin, so they never
 # show up in shell history or `ps`. With -n it checks the file and prints what it
 # would set (names only) without calling Fly. Run it via `make fly-secrets` /
@@ -16,7 +17,7 @@ file="${1:-./.env}"
 case "$file" in */*) ;; *) file="./$file" ;; esac
 [ -f "$file" ] || { echo "$file not found" >&2; exit 1; }
 
-keys="DATABASE_URL JWT_SECRET CLOUDINARY_CLOUD_NAME CLOUDINARY_API_KEY CLOUDINARY_API_SECRET"
+keys="DATABASE_URL JWT_SECRET CLOUDINARY_CLOUD_NAME CLOUDINARY_API_KEY CLOUDINARY_API_SECRET VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT REMINDER_CRON_SECRET"
 
 # Read only the file: drop anything inherited (e.g. the Makefile's dev JWT_SECRET).
 for k in $keys; do unset "$k"; done

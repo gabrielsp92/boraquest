@@ -121,3 +121,9 @@ export type WeekResult = { from: string; to: string; prize: string; winner: Week
 export type WeekHistory = { weeks: WeekResult[] };
 
 export const getWeekHistory = () => apiFetch<WeekHistory>("/weeks/history");
+
+/** The shape of PushSubscription.toJSON() the API stores for the daily reminder. */
+export type PushSubscriptionInput = { endpoint: string; keys: { p256dh: string; auth: string } };
+export const getPushPublicKey = () => apiFetch<{ publicKey: string }>("/push/public-key");
+export const savePushSubscription = (s: PushSubscriptionInput) => apiFetch<void>("/me/push-subscription", "PUT", s);
+export const deletePushSubscription = (endpoint: string) => apiFetch<void>("/me/push-subscription", "DELETE", { endpoint });

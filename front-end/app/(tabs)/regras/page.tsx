@@ -18,7 +18,8 @@ import {
   type RuleList,
   type ScoreType,
 } from "@/lib/api";
-import { clearSession, useSession } from "@/lib/auth";
+import { useSession } from "@/lib/auth";
+import { signOut } from "@/lib/push";
 
 const frequencyLabel: Record<RuleFrequency, string> = { daily: "Diária", weekly: "Semanal" };
 
@@ -226,7 +227,7 @@ export default function RegrasPage() {
             <Button variant="small" onClick={() => setAvatarOpen(true)}>
               Seu avatar
             </Button>
-            <Button variant="small" onClick={clearSession}>
+            <Button variant="small" onClick={() => void signOut()}>
               Sair
             </Button>
           </div>

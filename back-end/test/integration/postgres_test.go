@@ -13,6 +13,7 @@ import (
 
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/entry"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/guild"
+	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/push"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/rule"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/domain/user"
 	"github.com/gabrielsp92/boraquest/back-end/internal/src/infrastructure/postgres"
@@ -109,6 +110,73 @@ func TestRepositoriesSurfaceDatabaseErrors(t *testing.T) {
 	_, err = entries.SetPhoto(ctx, "g1", "e1", "u", "p")
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, entry.ErrNotFound)
+
+	_, err = guilds.ListAll(ctx)
+	assert.Error(t, err)
+
+	subs := postgres.NewPushSubscriptionRepository(closed)
+	assert.Error(t, subs.Upsert(ctx, push.Subscription{ID: "s1", UserID: "lia", Endpoint: "https://push.test/x"}, push.MaxPerUser))
+	assert.Error(t, subs.DeleteForUser(ctx, "lia", "https://push.test/x"))
+	assert.Error(t, subs.DeleteByEndpoint(ctx, "https://push.test/x"))
+	_, err = subs.ListByUser(ctx, "lia")
+	assert.Error(t, err)
+
+	_, err = postgres.NewDailyReminderRepository(closed).Claim(ctx, "lia", time.Now(), time.Now())
+	assert.Error(t, err)
+}
+
+func TestPushSubscriptionRepository(t *testing.T) {
+	resetPush(t)
+	ctx := context.Background()
+	subs := postgres.NewPushSubscriptionRepository(pool)
+	at := time.Date(2026, 10, 13, 23, 0, 0, 0, time.UTC)
+	s := push.Subscription{ID: "s1", UserID: "lia", Endpoint: "https://push.test/a", P256dh: "p", Auth: "a", CreatedAt: at, UpdatedAt: at}
+	require.NoError(t, subs.Upsert(ctx, s, push.MaxPerUser))
+
+	got, err := subs.ListByUser(ctx, "lia")
+	require.NoError(t, err)
+	assert.Equal(t, []push.Subscription{s}, got)
+
+	// Re-saving the endpoint keeps its id and created_at, and replaces owner, keys and updated_at.
+	later := at.Add(time.Hour)
+	moved := push.Subscription{ID: "s2", UserID: "beto", Endpoint: s.Endpoint, P256dh: "p2", Auth: "a2", CreatedAt: later, UpdatedAt: later}
+	require.NoError(t, subs.Upsert(ctx, moved, push.MaxPerUser))
+	got, err = subs.ListByUser(ctx, "beto")
+	require.NoError(t, err)
+	assert.Equal(t, []push.Subscription{{ID: "s1", UserID: "beto", Endpoint: s.Endpoint, P256dh: "p2", Auth: "a2", CreatedAt: at, UpdatedAt: later}}, got)
+	got, err = subs.ListByUser(ctx, "lia")
+	require.NoError(t, err)
+	assert.Empty(t, got)
+
+	// An unknown user violates the users foreign key.
+	ghost := s
+	ghost.ID, ghost.UserID, ghost.Endpoint = "s3", "ghost", "https://push.test/ghost"
+	assert.Error(t, subs.Upsert(ctx, ghost, push.MaxPerUser))
+
+	require.NoError(t, subs.DeleteByEndpoint(ctx, s.Endpoint))
+	require.NoError(t, subs.DeleteByEndpoint(ctx, s.Endpoint), "absent is not an error")
+	got, err = subs.ListByUser(ctx, "beto")
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestDailyReminderRepositoryClaim(t *testing.T) {
+	resetPush(t)
+	ctx := context.Background()
+	log := postgres.NewDailyReminderRepository(pool)
+	day := time.Date(2026, 10, 13, 0, 0, 0, 0, time.UTC)
+
+	ok, err := log.Claim(ctx, "lia", day, time.Now())
+	require.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = log.Claim(ctx, "lia", day, time.Now())
+	require.NoError(t, err)
+	assert.False(t, ok, "a second claim for the same day loses")
+
+	ok, err = log.Claim(ctx, "lia", day.AddDate(0, 0, 1), time.Now())
+	require.NoError(t, err)
+	assert.True(t, ok, "the next day is a new claim")
 }
 
 func TestEntryRepositoryCreateStatementErrors(t *testing.T) {
@@ -270,6 +338,10 @@ func TestGuildRepository(t *testing.T) {
 	assert.ErrorIs(t, err, guild.ErrNotFound)
 	_, err = guilds.FindByMember(ctx, outsiderID)
 	assert.ErrorIs(t, err, guild.ErrNotMember)
+
+	all, err := guilds.ListAll(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []guild.Guild{familia}, all)
 }
 
 func TestEntryRepositorySetPhoto(t *testing.T) {

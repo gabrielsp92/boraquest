@@ -18,8 +18,12 @@ type Controllers struct {
 	Guild      *controllers.GuildController
 	Scoreboard *controllers.ScoreboardController
 	Weeks      *controllers.WeekHistoryController
+	Push       *controllers.PushController
+	Reminders  *controllers.ReminderController
 	// RequireAuth guards every route that needs a signed-in user.
 	RequireAuth gin.HandlerFunc
+	// RequireCron guards the scheduler-only /internal routes with a shared secret.
+	RequireCron gin.HandlerFunc
 }
 
 // NewRouter builds the Gin engine with all routes registered.
@@ -30,9 +34,13 @@ func NewRouter(c Controllers) *gin.Engine {
 	v1 := r.Group("/api/v1")
 	v1.GET("/health", c.Health.Get)
 	v1.POST("/auth/login", c.Auth.Login)
+	v1.GET("/push/public-key", c.Push.PublicKey)
+	v1.POST("/internal/reminders/daily", c.RequireCron, c.Reminders.RunDaily)
 
 	me := v1.Group("/me", c.RequireAuth)
 	me.PUT("/avatar", c.Profile.UpdateAvatar)
+	me.PUT("/push-subscription", c.Push.Subscribe)
+	me.DELETE("/push-subscription", c.Push.Unsubscribe)
 
 	rules := v1.Group("/rules", c.RequireAuth)
 	rules.GET("", c.Rules.List)

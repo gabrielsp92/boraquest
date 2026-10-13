@@ -69,8 +69,9 @@ make lint              # go vet + gofmt check
 ## Deploy (CI/CD)
 
 - `.github/workflows/ci.yml`: PR lint + test, per side touched; deploys nothing.
-- `deploy-backend.yml` (push to `main`, `back-end/**`): `make lint`/`make cover` → `flyctl deploy` (`back-end/fly.toml`, `back-end/Dockerfile`). Fly runs `migrate` from the new image first; a failed migration aborts the deploy. Fly app secrets (`DATABASE_URL`, `JWT_SECRET`, `CLOUDINARY_*`) are set by hand with `make fly-secrets` (reads `back-end/.env`), never by CI.
+- `deploy-backend.yml` (push to `main`, `back-end/**`): `make lint`/`make cover` → `flyctl deploy` (`back-end/fly.toml`, `back-end/Dockerfile`). Fly runs `migrate` from the new image first; a failed migration aborts the deploy. Fly app secrets (`DATABASE_URL`, `JWT_SECRET`, `CLOUDINARY_*`, `VAPID_*`, `REMINDER_CRON_SECRET`) are set by hand with `make fly-secrets` (reads `back-end/.env`), never by CI.
 - **Fly organization is always `boraquest`** (the account belongs to others too). Every Fly command goes through `back-end/scripts/fly-app.sh`, which reads the app from `fly.toml` and refuses unless it belongs to that org; pass `-a "$app"` explicitly and never run bare `fly` commands against an unchecked app. One-time targets: `make fly-app-create` (`--org boraquest`), `make fly-deploy-token`.
+- `daily-reminder.yml` (schedule 23:05 UTC = 20:05 São Paulo, plus manual `workflow_dispatch` with `force`/`userId`): calls `POST /api/v1/internal/reminders/daily` on Fly with `REMINDER_CRON_SECRET`; the API sends the Web Push reminder (`todo/daily-reminder-push.md`). Needs the `production` environment secret `REMINDER_CRON_SECRET` and variable `BACKEND_PUBLIC_URL`. Scheduled runs stop after 60 days without repo activity.
 - `deploy-frontend.yml` (push to `main`, `front-end/**`): lint → `vercel pull`/`build`/`deploy --prebuilt --prod`. `BACKEND_URL` must be set in the Vercel project's Production env, or the site silently proxies to localhost.
 - One-time setup steps are in `todo/ci-cd-deploy.md` → Prerequisites.
 

@@ -454,12 +454,111 @@ paths:
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/Error"
+  /push/public-key:
+    get:
+      summary: VAPID public key browsers subscribe with
+      description: Public by design; the front-end passes it as applicationServerKey.
+      operationId: getPushPublicKey
+      responses:
+        "200":
+          description: The VAPID public key (base64url)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushPublicKey"
+  /me/push-subscription:
+    put:
+      summary: Save this device's Web Push subscription for the caller
+      description: >-
+        Body is PushSubscription.toJSON(); extra fields (expirationTime) are ignored.
+        An endpoint already stored is reassigned to the caller with the new keys.
+        A user keeps at most 10 subscriptions; saving an 11th deletes their least
+        recently updated one.
+      operationId: savePushSubscription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushSubscriptionRequest"
+      responses:
+        "204":
+          description: Saved (inserted or reassigned)
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+    delete:
+      summary: Remove the caller's subscription for this device
+      description: >-
+        Only ever deletes the caller's own row. Answers 204 whether or not it existed.
+      operationId: deletePushSubscription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeletePushSubscriptionRequest"
+      responses:
+        "204":
+          description: Removed, or nothing to remove
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+  /internal/reminders/daily:
+    post:
+      summary: Send today's "mark your quests" reminder (scheduler only)
+      description: >-
+        Called once a day by the GitHub Actions "Daily reminder" workflow. Sends one Web Push
+        to every device of each member who still has an unchecked daily sum quest today
+        (America/Sao_Paulo), at most once per member per day. Only runs between 20:00 and
+        23:00 São Paulo time unless force is true. With userId, only that member is
+        considered and the once-a-day rule is skipped (nothing is recorded).
+      operationId: runDailyReminder
+      security:
+        - cronSecret: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunDailyRequest"
+      responses:
+        "200":
+          description: What the run did
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunDailyResult"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: Outside the 20:00–23:00 send window (outside the daily send window)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    cronSecret:
+      type: http
+      scheme: bearer
+      description: >-
+        Shared secret REMINDER_CRON_SECRET (not a JWT), compared in constant time.
+        Only the scheduler holds it.
   responses:
     Error:
       description: >-
@@ -739,6 +838,67 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WeekResult"
+    PushPublicKey:
+      type: object
+      required: [publicKey]
+      properties:
+        publicKey:
+          type: string
+    PushSubscriptionRequest:
+      type: object
+      required: [endpoint, keys]
+      properties:
+        endpoint:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: Absolute https URL.
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh:
+              type: string
+              description: base64url (padded or not), decodes to 65 bytes
+            auth:
+              type: string
+              description: base64url (padded or not), decodes to 16 bytes
+    DeletePushSubscriptionRequest:
+      type: object
+      required: [endpoint]
+      properties:
+        endpoint:
+          type: string
+    RunDailyRequest:
+      type: object
+      properties:
+        force:
+          type: boolean
+          default: false
+          description: Skip the 20:00–23:00 window.
+        userId:
+          type: string
+          default: ""
+          description: Only this user, and skip the once-a-day rule.
+    RunDailyResult:
+      type: object
+      required: [day, usersEligible, usersNotified, usersSkipped, devicesSent, devicesFailed, devicesRemoved]
+      properties:
+        day:
+          type: string
+          format: date
+        usersEligible:
+          type: integer
+        usersNotified:
+          type: integer
+        usersSkipped:
+          type: integer
+        devicesSent:
+          type: integer
+        devicesFailed:
+          type: integer
+        devicesRemoved:
+          type: integer
     Error:
       type: object
       required: [error]

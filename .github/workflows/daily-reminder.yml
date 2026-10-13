@@ -1,0 +1,44 @@
+# Daily reminder (todo/daily-reminder-push.md): once a day, ask the API to Web Push
+# "Bora fechar o dia?" to every member with an unchecked daily quest. The back-end
+# decides who gets it and records each member's reminder, so retries never double-send.
+# Scheduled runs only happen on the default branch, can be delayed by GitHub under
+# load, and stop after 60 days without repository activity: if reminders stop, check
+# the Actions tab first. A non-2xx answer fails the job (the only alerting).
+name: Daily reminder
+
+on:
+  schedule:
+    - cron: "5 23 * * *" # 23:05 UTC = 20:05 America/Sao_Paulo (UTC−3, no DST). Off the top of the hour on purpose.
+  workflow_dispatch:
+    inputs:
+      force:
+        type: boolean
+        default: false
+        description: "Ignore the 20h–23h window"
+      userId:
+        type: string
+        default: ""
+        description: "Only this user (also ignores the once-a-day rule)"
+
+concurrency:
+  group: daily-reminder
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      # Calls Fly directly (not through Vercel). The request wakes the stopped machine,
+      # so the timeout and retries cover a cold start.
+      - name: Call the API
+        env:
+          API_URL: ${{ vars.BACKEND_PUBLIC_URL }} # e.g. https://boraquest-api.fly.dev
+          SECRET: ${{ secrets.REMINDER_CRON_SECRET }}
+          FORCE: ${{ inputs.force || false }}
+          USER_ID: ${{ inputs.userId || '' }}
+        run: |
+          body=$(jq -nc --argjson force "$FORCE" --arg userId "$USER_ID" '{force:$force, userId:$userId}')
+          curl -fsS --max-time 120 --retry 3 --retry-all-errors --retry-delay 10 \
+            -X POST "$API_URL/api/v1/internal/reminders/daily" \
+            -H "Authorization: Bearer $SECRET" -H "Content-Type: application/json" -d "$body"

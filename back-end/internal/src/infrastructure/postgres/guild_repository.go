@@ -36,6 +36,19 @@ func (r *GuildRepository) FindByMember(ctx context.Context, userID string) (guil
 		guildSelect+`WHERE g.id = (SELECT guild_id FROM guild_members WHERE user_id = $1)`, userID)
 }
 
+// ListAll returns every guild with its members, ordered by id.
+func (r *GuildRepository) ListAll(ctx context.Context) ([]guild.Guild, error) {
+	rows, err := r.pool.Query(ctx, guildSelect+`ORDER BY g.id`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (guild.Guild, error) {
+		var g guild.Guild
+		err := row.Scan(&g.ID, &g.Name, &g.UserIDs)
+		return g, err
+	})
+}
+
 func (r *GuildRepository) scan(ctx context.Context, notFound error, query string, arg string) (guild.Guild, error) {
 	var g guild.Guild
 	err := r.pool.QueryRow(ctx, query, arg).Scan(&g.ID, &g.Name, &g.UserIDs)
