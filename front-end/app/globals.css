@@ -175,8 +175,11 @@ body { margin: 0; background: var(--ground); color: var(--ink); font: 700 17px/2
   .bq-dots i{width:16px;height:16px;border-radius:50%;border:3px solid var(--ink)}
   .bq-dots i.is-on{background:var(--ink)}
 
-  /* Bottom navigation */
-  .bq-nav{flex:none;position:sticky;bottom:0;z-index:10;height:calc(64px + max(20px,env(safe-area-inset-bottom)));display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-1);padding:var(--space-2) var(--space-2) max(20px,env(safe-area-inset-bottom));background:var(--surface);border-top:2px solid var(--line)}
+  /* Bottom navigation: fixed, not sticky, so iOS overscroll bounce doesn't drag it off the bottom edge.
+     A screen that shows it reserves its height with .bq-screen--nav. */
+  .bq-screen--nav,.bq-nav{--bq-nav-h:calc(64px + max(20px,env(safe-area-inset-bottom)))}
+  .bq-screen--nav{padding-bottom:var(--bq-nav-h)}
+  .bq-nav{position:fixed;left:50%;translate:-50% 0;bottom:0;width:100%;max-width:480px;z-index:10;height:var(--bq-nav-h);display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-1);padding:var(--space-2) var(--space-2) max(20px,env(safe-area-inset-bottom));background:var(--surface);border-top:2px solid var(--line)}
   .bq-nav__item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:var(--tap-primary);border-radius:var(--radius-md);font:700 13px/18px var(--font-body);color:var(--ink-muted);text-decoration:none}
   .bq-nav__item[aria-current="page"]{background:var(--accent-soft);color:var(--ink);font-weight:800}
 
