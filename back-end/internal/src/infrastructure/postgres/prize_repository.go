@@ -32,6 +32,7 @@ func (r *PrizeRepository) Get(ctx context.Context, guildID string) (prize.Prizes
 }
 
 // Upsert creates the guild's row if missing, then sets just the given period's column.
+// A trigger on prizes appends every change to prize_changes (see WeekPrizeAt).
 func (r *PrizeRepository) Upsert(ctx context.Context, guildID string, period prize.Period, text string, now time.Time) (prize.Prizes, error) {
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO prizes (guild_id, week, month, updated_at)
@@ -43,6 +44,22 @@ func (r *PrizeRepository) Upsert(ctx context.Context, guildID string, period pri
 		RETURNING guild_id, week, month, updated_at`,
 		guildID, period, text, now)
 	return scanPrizes(row)
+}
+
+// WeekPrizeAt returns the guild's week prize as it was right before at, or ""
+// if none had been set by then.
+func (r *PrizeRepository) WeekPrizeAt(ctx context.Context, guildID string, at time.Time) (string, error) {
+	var text string
+	err := r.pool.QueryRow(ctx, `
+		SELECT text FROM prize_changes
+		WHERE guild_id = $1 AND period = 'week' AND changed_at < $2
+		ORDER BY changed_at DESC, id DESC
+		LIMIT 1`,
+		guildID, at).Scan(&text)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return text, err
 }
 
 func scanPrizes(row pgx.Row) (prize.Prizes, error) {

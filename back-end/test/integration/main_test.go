@@ -124,6 +124,14 @@ func newServer(t *testing.T) *httptest.Server {
 			systemClock,
 			saoPaulo,
 		)),
+		Weeks: controllers.NewWeekHistoryController(service.NewWeekHistoryService(
+			postgres.NewWeekResultRepository(pool),
+			postgres.NewEntryRepository(pool),
+			postgres.NewPrizeRepository(pool),
+			postgres.NewGuildRepository(pool),
+			systemClock,
+			saoPaulo,
+		)),
 		RequireAuth: middleware.RequireAuth(tokens),
 	})
 	srv := httptest.NewServer(router)

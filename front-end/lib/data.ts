@@ -52,13 +52,6 @@ export const week: Day[] = [
   { label: "Terça", done: ["agua", "caminhada"], slips: [{ questId: "celular", by: "nena" }], photos: 0 },
 ];
 
-export const pastWeeks: { range: string; winner: MemberId; points: number; prize: string }[] = [
-  { range: "28 de set. a 4 de out.", winner: "nena", points: 140, prize: "Escolher o filme de sábado" },
-  { range: "21 a 27 de setembro", winner: "lia", points: 125, prize: "Café da manhã na cama" },
-  { range: "14 a 20 de setembro", winner: "nena", points: 130, prize: "Escolher o filme de sábado" },
-  { range: "7 a 13 de setembro", winner: "beto", points: 110, prize: "Folga da louça no domingo" },
-];
-
 export type Standing = { member: MemberId; points: number; auditPending?: boolean };
 export const weekStandings: Standing[] = [
   { member: "nena", points: 120 },

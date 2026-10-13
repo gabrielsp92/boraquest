@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, DayCard, EmptyState, RankRow, ScoreHeader, Segmented, Sheet, TopBar } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { members, pastWeeks } from "@/lib/data";
-import { listEntries, listGuildMembers, type Entry, type EntryList, type GuildMember } from "@/lib/api";
+import { getWeekHistory, listEntries, listGuildMembers, type Entry, type EntryList, type GuildMember, type WeekResult } from "@/lib/api";
+import { memberAvatarSrc } from "@/lib/avatars";
 import { dayLabel, weekRangeLabel } from "@/lib/date";
 
 export default function SemanaPage() {
@@ -18,6 +18,12 @@ export default function SemanaPage() {
   const [guildMembers, setGuildMembers] = useState<GuildMember[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+
+  // Past weeks: fetched the first time "Anteriores" is opened, then kept. Not
+  // tied to the tab, so switching away mid-request never discards the response.
+  const [pastWeeks, setPastWeeks] = useState<WeekResult[] | null>(null);
+  const [pastLoadError, setPastLoadError] = useState(false);
+  const pastLoading = useRef(false);
 
   function applyData(list: EntryList) {
     setEntries(list.entries);
@@ -50,8 +56,26 @@ export default function SemanaPage() {
     };
   }, []);
 
+  function loadPast() {
+    if (pastWeeks !== null || pastLoading.current) return;
+    pastLoading.current = true;
+    setPastLoadError(false);
+    getWeekHistory()
+      .then(({ weeks }) => setPastWeeks(weeks))
+      .catch(() => setPastLoadError(true))
+      .finally(() => {
+        pastLoading.current = false;
+      });
+  }
+
+  function changeView(next: "atual" | "anteriores") {
+    setView(next);
+    if (next === "anteriores") loadPast();
+  }
+
   const memberById = new Map((guildMembers ?? []).map((m) => [m.id, m]));
   const displayName = (id: string) => memberById.get(id)?.name ?? id;
+  const toMember = (id: string) => ({ id, name: displayName(id), avatar: memberAvatarSrc(memberById.get(id)) });
 
   // Group entries by day, newest/today first.
   const byDay = new Map<string, Entry[]>();
@@ -66,7 +90,7 @@ export default function SemanaPage() {
       <TopBar title="Semana" caption={view === "atual" ? (from && to ? weekRangeLabel(from, to) : undefined) : "Quem já venceu"} />
       <Segmented
         value={view}
-        onChange={setView}
+        onChange={changeView}
         options={[
           { value: "atual", label: "Esta semana" },
           { value: "anteriores", label: "Anteriores" },
@@ -127,17 +151,29 @@ export default function SemanaPage() {
         ))}
 
       {view === "anteriores" &&
-        (pastWeeks.length === 0 ? (
+        (pastWeeks === null || guildMembers === null ? (
+          pastLoadError || loadError ? (
+            <EmptyState icon="trophy" title="Não deu para carregar" text="Confira sua conexão e tente de novo.">
+              <Button onClick={pastLoadError ? loadPast : retry}>Tentar de novo</Button>
+            </EmptyState>
+          ) : (
+            <p className="bq-caption" role="status">
+              Carregando semanas anteriores…
+            </p>
+          )
+        ) : pastWeeks.length === 0 ? (
           <EmptyState icon="trophy" title="Ainda sem vencedores" text="O primeiro vencedor aparece aqui no fim da semana." />
         ) : (
           <div className="bq-list" style={{ gap: 12 }}>
             {pastWeeks.map((w) => (
-              <RankRow key={w.range} member={members[w.winner]} points={w.points} crown>
-                <p className="bq-caption">{w.range}</p>
-                <p className="bq-caption bq-row" style={{ gap: 4 }}>
-                  <Icon name="trophy" size={14} />
-                  {w.prize}
-                </p>
+              <RankRow key={w.from} member={toMember(w.winner.memberId)} points={w.winner.points} crown>
+                <p className="bq-caption">{weekRangeLabel(w.from, w.to)}</p>
+                {w.prize && (
+                  <p className="bq-caption bq-row" style={{ gap: 4 }}>
+                    <Icon name="trophy" size={14} />
+                    {w.prize}
+                  </p>
+                )}
               </RankRow>
             ))}
           </div>

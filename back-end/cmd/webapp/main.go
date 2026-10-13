@@ -71,8 +71,9 @@ func main() {
 		idgen.UUIDGenerator{},
 		systemClock,
 	)
+	prizeRepository := postgres.NewPrizeRepository(pool)
 	prizeService := service.NewPrizeService(
-		postgres.NewPrizeRepository(pool),
+		prizeRepository,
 		guildRepository,
 		systemClock,
 	)
@@ -88,6 +89,14 @@ func main() {
 	)
 	guildService := service.NewGuildService(guildRepository, userRepository)
 	scoreboardService := service.NewScoreboardService(entryRepository, guildRepository, systemClock, loc)
+	weekHistoryService := service.NewWeekHistoryService(
+		postgres.NewWeekResultRepository(pool),
+		entryRepository,
+		prizeRepository,
+		guildRepository,
+		systemClock,
+		loc,
+	)
 
 	// Interface
 	router := routes.NewRouter(routes.Controllers{
@@ -99,6 +108,7 @@ func main() {
 		Entries:     controllers.NewEntryController(entryService),
 		Guild:       controllers.NewGuildController(guildService),
 		Scoreboard:  controllers.NewScoreboardController(scoreboardService),
+		Weeks:       controllers.NewWeekHistoryController(weekHistoryService),
 		RequireAuth: middleware.RequireAuth(tokens),
 	})
 

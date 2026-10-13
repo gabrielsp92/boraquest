@@ -127,6 +127,26 @@ func (r *EntryRepository) SumByGuild(ctx context.Context, guildID string, from, 
 	})
 }
 
+// WeekStartsWithEntries returns, ascending, the Monday of every week that has at
+// least one of guildID's entries with occurredOn in [from, before). ISO weeks
+// start on Monday, matching entry.WeekStart.
+func (r *EntryRepository) WeekStartsWithEntries(ctx context.Context, guildID string, from, before time.Time) ([]time.Time, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT date_trunc('week', occurred_on)::date AS week_start
+		FROM entries
+		WHERE guild_id = $1 AND occurred_on >= $2 AND occurred_on < $3
+		ORDER BY week_start`,
+		guildID, from, before)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (time.Time, error) {
+		var d time.Time
+		err := row.Scan(&d)
+		return d.UTC(), err
+	})
+}
+
 func scanEntry(row pgx.Row) (entry.Entry, error) {
 	var e entry.Entry
 	err := row.Scan(&e.ID, &e.GuildID, &e.RuleID, &e.RuleName, &e.ScoreType, &e.Points, &e.MemberID, &e.LoggedBy, &e.OccurredOn, &e.PeriodKey, &e.CreatedAt, &e.PhotoURL, &e.PhotoPublicID)
