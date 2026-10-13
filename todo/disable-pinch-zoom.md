@@ -1,6 +1,6 @@
 # Disable pinch zoom on mobile
 
-Status: Ready
+Status: Done
 Last updated: 2026-10-13
 Depends on: none (front-end only, no back-end or API change)
 
