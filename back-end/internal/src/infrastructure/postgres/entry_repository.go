@@ -127,6 +127,30 @@ func (r *EntryRepository) SumByGuild(ctx context.Context, guildID string, from, 
 	})
 }
 
+// SumByRule returns memberID's entries in guildID with occurredOn in [from, to],
+// grouped by (rule, score type), each named after its most recent entry so a
+// renamed or deleted quest shows its latest name.
+func (r *EntryRepository) SumByRule(ctx context.Context, guildID, memberID string, from, to time.Time) ([]service.QuestTotal, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT rule_id,
+		       (ARRAY_AGG(rule_name ORDER BY occurred_on DESC, created_at DESC))[1] AS rule_name,
+		       score_type,
+		       COUNT(*)::int AS count,
+		       SUM(points)::int AS points
+		FROM entries
+		WHERE guild_id = $1 AND member_id = $2 AND occurred_on BETWEEN $3 AND $4
+		GROUP BY rule_id, score_type`,
+		guildID, memberID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (service.QuestTotal, error) {
+		var t service.QuestTotal
+		err := row.Scan(&t.RuleID, &t.RuleName, &t.ScoreType, &t.Count, &t.Points)
+		return t, err
+	})
+}
+
 // WeekStartsWithEntries returns, ascending, the Monday of every week that has at
 // least one of guildID's entries with occurredOn in [from, before). ISO weeks
 // start on Monday, matching entry.WeekStart.

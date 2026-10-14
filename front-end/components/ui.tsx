@@ -188,6 +188,8 @@ export function RankRow({
   points,
   leader,
   crown = leader,
+  onOpen,
+  openLabel,
   children,
 }: {
   position?: number;
@@ -195,10 +197,14 @@ export function RankRow({
   points: number;
   leader?: boolean;
   crown?: boolean;
+  /** Makes the whole card tappable (stretched button); buttons inside keep their own action. */
+  onOpen?: () => void;
+  openLabel?: string;
   children?: ReactNode;
 }) {
   return (
     <div className={cx("bq-rank", leader && "bq-rank--leader")}>
+      {onOpen && <button type="button" className="bq-rank__open" aria-label={openLabel} onClick={onOpen} />}
       {position !== undefined && <span className="bq-rank__pos">{position}</span>}
       <Avatar member={member} crown={crown} />
       <div className="bq-stack bq-grow">

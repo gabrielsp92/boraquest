@@ -106,6 +106,8 @@ func TestRepositoriesSurfaceDatabaseErrors(t *testing.T) {
 	assert.Error(t, err)
 	_, err = entries.SumByGuild(ctx, "g1", time.Now(), time.Now())
 	assert.Error(t, err)
+	_, err = entries.SumByRule(ctx, "g1", "lia", time.Now(), time.Now())
+	assert.Error(t, err)
 	_, err = entries.SetPhoto(ctx, "g1", "e1", "u", "p")
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, entry.ErrNotFound)

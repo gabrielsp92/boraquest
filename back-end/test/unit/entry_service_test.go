@@ -25,6 +25,8 @@ type fakeEntryRepo struct {
 	listErr   error
 	summed    []service.MemberTotal
 	sumErr    error
+	byRule    []service.QuestTotal
+	byRuleErr error
 	photoSet  entry.Entry
 	photoErr  error
 
@@ -38,6 +40,10 @@ type fakeEntryRepo struct {
 	sumArgs struct {
 		guildID  string
 		from, to time.Time
+	}
+	byRuleArgs struct {
+		guildID, memberID string
+		from, to          time.Time
 	}
 	photoArgs [4]string
 }
@@ -90,6 +96,11 @@ func (f *fakeEntryRepo) ListByMember(_ context.Context, guildID, memberID string
 func (f *fakeEntryRepo) SumByGuild(_ context.Context, guildID string, from, to time.Time) ([]service.MemberTotal, error) {
 	f.sumArgs.guildID, f.sumArgs.from, f.sumArgs.to = guildID, from, to
 	return f.summed, f.sumErr
+}
+
+func (f *fakeEntryRepo) SumByRule(_ context.Context, guildID, memberID string, from, to time.Time) ([]service.QuestTotal, error) {
+	f.byRuleArgs.guildID, f.byRuleArgs.memberID, f.byRuleArgs.from, f.byRuleArgs.to = guildID, memberID, from, to
+	return f.byRule, f.byRuleErr
 }
 
 var saoPaulo = mustLoadLocation()

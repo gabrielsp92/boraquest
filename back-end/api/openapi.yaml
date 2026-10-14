@@ -432,6 +432,44 @@ paths:
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/Error"
+  /scoreboard/members/{memberId}:
+    get:
+      summary: Break one guild member's score down by quest for a period
+      description: >-
+        Covers the same date range as GET /scoreboard for the same period, so total
+        and completed always equal that member's standing. Entries are grouped by
+        (rule, score type) and named after their most recent entry, so renamed and
+        deleted quests are still listed.
+      operationId: getScoreBreakdown
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [week, month]
+      responses:
+        "200":
+          description: The member's per-quest totals, sorted by points descending then name ascending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreBreakdown"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /weeks/history:
     get:
       summary: List the caller's guild's closed weeks with their winner and prize
@@ -464,7 +502,7 @@ components:
     Error:
       description: >-
         Error. 400 invalid body or field, 401 missing/invalid token or bad credentials,
-        403 caller belongs to no guild, 404 rule not found in the caller's guild.
+        403 caller belongs to no guild, 404 rule or member not found in the caller's guild.
       content:
         application/json:
           schema:
@@ -685,6 +723,49 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Standing"
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        today:
+          type: string
+          format: date
+    QuestTotal:
+      type: object
+      required: [ruleId, ruleName, scoreType, count, points]
+      properties:
+        ruleId:
+          type: string
+        ruleName:
+          type: string
+          description: Name on the member's most recent entry for this quest
+        scoreType:
+          type: string
+          enum: [sum, decrease]
+        count:
+          type: integer
+          description: Number of entries
+        points:
+          type: integer
+          description: Sum of the entries' points; negative for decrease
+    ScoreBreakdown:
+      type: object
+      required: [memberId, items, total, completed, from, to, today]
+      properties:
+        memberId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestTotal"
+        total:
+          type: integer
+          description: Sum of the items' points; equals the member's standing points
+        completed:
+          type: integer
+          description: Sum of count over sum-type items; equals the member's standing completed
         from:
           type: string
           format: date
