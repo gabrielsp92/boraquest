@@ -38,6 +38,10 @@ type EntryRepository interface {
 	// occurredOn falls in [from, to], their total points and count of sum-type entries.
 	// A member with zero entries in range is simply absent from the result.
 	SumByGuild(ctx context.Context, guildID string, from, to time.Time) ([]MemberTotal, error)
+	// SumByRule returns memberID's entries in guildID with occurredOn in [from, to],
+	// grouped by (rule, score type), each named after its most recent entry.
+	// A member with no entries in range gets an empty slice.
+	SumByRule(ctx context.Context, guildID, memberID string, from, to time.Time) ([]QuestTotal, error)
 	// SetPhoto stores the photo of entry id only if it has none yet. Returns
 	// entry.ErrNotFound when id doesn't exist in the guild, or entry.ErrPhotoExists
 	// when a photo was already set (including a lost concurrent race).

@@ -115,6 +115,14 @@ export type Scoreboard = { standings: Standing[]; from: string; to: string; toda
 
 export const getScoreboard = (period: ScoreboardPeriod) => apiFetch<Scoreboard>(`/scoreboard?period=${period}`);
 
+/** One quest's aggregate for a member over a period; `points` is signed (negative for slips). */
+export type QuestTotal = { ruleId: string; ruleName: string; scoreType: "sum" | "decrease"; count: number; points: number };
+/** `items` sorted by points desc, then name; `total`/`completed` match the member's Standing. */
+export type ScoreBreakdown = { memberId: string; items: QuestTotal[]; total: number; completed: number; from: string; to: string; today: string };
+
+export const getScoreBreakdown = (memberId: string, period: ScoreboardPeriod) =>
+  apiFetch<ScoreBreakdown>(`/scoreboard/members/${encodeURIComponent(memberId)}?period=${period}`);
+
 export type WeekStanding = { memberId: string; rank: number; points: number; completed: number };
 /** A closed week (Monday to Sunday); `prize` is the week prize in effect when it ended, "" if none. */
 export type WeekResult = { from: string; to: string; prize: string; winner: WeekStanding; standings: WeekStanding[] };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ScoreBreakdownSheet } from "@/components/ScoreBreakdownSheet";
 import { Avatar, Badge, Bar, Button, EmptyState, PrizeCard, RankRow, Segmented, Sheet, TopBar } from "@/components/ui";
 import { getPrizes, getScoreboard, listGuildMembers, type GuildMember, type Prizes, type Standing } from "@/lib/api";
 import { useSession } from "@/lib/auth";
@@ -23,6 +24,8 @@ export default function GuildaPage() {
   const [loadedView, setLoadedView] = useState<"semana" | "mes" | null>(null);
   const [pending, setPending] = useState<string[]>([]);
   const [asking, setAsking] = useState<string | null>(null);
+  // Member whose score breakdown sheet is open.
+  const [viewing, setViewing] = useState<string | null>(null);
 
   // Prizes: own fetch, independent of the standings above.
   const [prizes, setPrizes] = useState<Prizes | null>(null);
@@ -96,7 +99,10 @@ export default function GuildaPage() {
           <div style={{ width: 196 }}>
             <Segmented
               value={view}
-              onChange={setView}
+              onChange={(v) => {
+                setView(v);
+                setViewing(null);
+              }}
               options={[
                 { value: "semana", label: "Semana" },
                 { value: "mes", label: "Mês" },
@@ -126,7 +132,15 @@ export default function GuildaPage() {
       ) : (
         <div className="bq-list">
           {currentStandings.map((s, i) => (
-            <RankRow key={s.memberId} position={i + 1} member={toMember(s.memberId)} points={s.points} leader={i === 0}>
+            <RankRow
+              key={s.memberId}
+              position={i + 1}
+              member={toMember(s.memberId)}
+              points={s.points}
+              leader={i === 0}
+              onOpen={() => setViewing(s.memberId)}
+              openLabel={`Ver quests de ${toMember(s.memberId).name}`}
+            >
               {view === "mes" ? (
                 <Bar percent={Math.round((s.points / top) * 100)} />
               ) : pending.includes(s.memberId) ? (
@@ -145,6 +159,8 @@ export default function GuildaPage() {
           ))}
         </div>
       )}
+
+      {viewing && <ScoreBreakdownSheet member={toMember(viewing)} period={view === "semana" ? "week" : "month"} onClose={() => setViewing(null)} />}
 
       <Sheet open={!!asking} onClose={() => setAsking(null)}>
         {asking && (

@@ -11,3 +11,4 @@
 | [Image upload flow: gallery picks for quest photos, avatar photos, and split Cloudinary folders](./image-upload-flow.md) | Draft | 2026-10-12 | quest-photo-uploads, profile-avatar |
 | [Daily reminder: a 20h Web Push nudge to mark today's quests](./daily-reminder-push.md) | Ready | 2026-10-13 | none (builds on shipped quest-entries; deploys via ci-cd-deploy) |
 | [Disable pinch zoom on mobile: lock page scale so the app feels native](./disable-pinch-zoom.md) | Ready | 2026-10-13 | none |
+| [Member score breakdown: tap a Guilda card to see quests, counts and points behind the score](./member-score-breakdown.md) | Done | 2026-10-14 | none (builds on shipped quest-entries and scoreboard) |

@@ -57,6 +57,7 @@ func NewRouter(c Controllers) *gin.Engine {
 
 	scoreboard := v1.Group("/scoreboard", c.RequireAuth)
 	scoreboard.GET("", c.Scoreboard.List)
+	scoreboard.GET("/members/:memberId", c.Scoreboard.Breakdown)
 
 	weeks := v1.Group("/weeks", c.RequireAuth)
 	weeks.GET("/history", c.Weeks.List)
