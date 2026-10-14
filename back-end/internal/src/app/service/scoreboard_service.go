@@ -104,11 +104,18 @@ func (s *ScoreboardService) Breakdown(ctx context.Context, callerID, memberID st
 		return nil, time.Time{}, time.Time{}, time.Time{}, err
 	}
 	names := collate.New(language.BrazilianPortuguese) // "Água" sorts with the A's
-	sort.SliceStable(items, func(i, j int) bool {
+	sort.Slice(items, func(i, j int) bool {
 		if items[i].Points != items[j].Points {
 			return items[i].Points > items[j].Points
 		}
-		return names.CompareString(items[i].RuleName, items[j].RuleName) < 0
+		if c := names.CompareString(items[i].RuleName, items[j].RuleName); c != 0 {
+			return c < 0
+		}
+		// Same points and name (e.g. a quest re-created after deletion): keep a stable order.
+		if items[i].RuleID != items[j].RuleID {
+			return items[i].RuleID < items[j].RuleID
+		}
+		return items[i].ScoreType < items[j].ScoreType
 	})
 	return items, from, to, today, nil
 }

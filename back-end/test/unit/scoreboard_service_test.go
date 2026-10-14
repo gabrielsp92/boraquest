@@ -255,3 +255,20 @@ func TestScoreboardServiceBreakdownRepoError(t *testing.T) {
 
 	assert.ErrorIs(t, err, errBoom)
 }
+
+func TestScoreboardServiceBreakdownTieBreaksByRuleIDThenScoreType(t *testing.T) {
+	entries := &fakeEntryRepo{byRule: []service.QuestTotal{
+		{RuleID: "r2", RuleName: "Treino", ScoreType: rule.ScoreTypeSum, Count: 1, Points: 0},
+		{RuleID: "r1", RuleName: "Treino", ScoreType: rule.ScoreTypeSum, Count: 1, Points: 0},
+		{RuleID: "r1", RuleName: "Treino", ScoreType: rule.ScoreTypeDecrease, Count: 1, Points: 0},
+	}}
+
+	items, _, _, _, err := newScoreboardService(entries, fakeGuilds{guild: scoreboardGuild}, time.Now()).Breakdown(context.Background(), "lia", "beto", service.ScoreboardWeek)
+
+	require.NoError(t, err)
+	assert.Equal(t, []service.QuestTotal{
+		{RuleID: "r1", RuleName: "Treino", ScoreType: rule.ScoreTypeDecrease, Count: 1, Points: 0},
+		{RuleID: "r1", RuleName: "Treino", ScoreType: rule.ScoreTypeSum, Count: 1, Points: 0},
+		{RuleID: "r2", RuleName: "Treino", ScoreType: rule.ScoreTypeSum, Count: 1, Points: 0},
+	}, items)
+}
